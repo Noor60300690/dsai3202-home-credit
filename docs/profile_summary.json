@@ -1,0 +1,63 @@
+{
+  "application_train": {
+    "rows": 307511,
+    "columns": 122,
+    "missing_required": [],
+    "cast_failures": {},
+    "duplicate_keys": 0,
+    "exact_duplicate_rows": 0
+  },
+  "application_test": {
+    "rows": 48744,
+    "columns": 121,
+    "missing_required": [],
+    "cast_failures": {},
+    "duplicate_keys": 0,
+    "exact_duplicate_rows": 0
+  },
+  "bureau": {
+    "rows": 1716428,
+    "columns": 17,
+    "missing_required": [],
+    "cast_failures": {},
+    "duplicate_keys": 0,
+    "exact_duplicate_rows": 0
+  },
+  "bureau_balance": {
+    "rows": 27299925,
+    "columns": 3,
+    "missing_required": [],
+    "cast_failures": {},
+    "duplicate_keys": 0,
+    "exact_duplicate_rows": 0
+  },
+  "previous_application": {
+    "rows": 1670214,
+    "columns": 37,
+    "missing_required": [],
+    "cast_failures": {},
+    "duplicate_keys": 0,
+    "exact_duplicate_rows": 0
+  },
+  "installments_payments": {
+    "rows": 13605401,
+    "columns": 8,
+    "missing_required": [],
+    "cast_failures": {},
+    "exact_duplicate_rows": 0
+  },
+  "pos_cash_balance": {
+    "rows": 10001358,
+    "columns": 8,
+    "missing_required": [],
+    "cast_failures": {},
+    "exact_duplicate_rows": 0
+  },
+  "credit_card_balance": {
+    "rows": 3840312,
+    "columns": 23,
+    "missing_required": [],
+    "cast_failures": {},
+    "exact_duplicate_rows": 0
+  }
+}
