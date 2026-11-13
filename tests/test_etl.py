@@ -34,6 +34,7 @@ def test_type_resolution():
     assert resolve_type("SK_ID_CURR") == "bigint"
     assert resolve_type("TARGET") == "int"
     assert resolve_type("DAYS_BIRTH") == "int"
+    assert resolve_type("DAYS_REGISTRATION") == "double"   # fractional value in real data
     assert resolve_type("AMT_CREDIT") == "double"
     assert resolve_type("FLAG_OWN_CAR") == "string"          # Y/N, despite the FLAG_ prefix
     assert resolve_type("FLAG_DOCUMENT_3") == "double"
@@ -46,8 +47,15 @@ def test_clean_rows_pass_and_are_typed(spark, csv_file):
     assert acc.count() == 2 and out["rejected"].count() == 0
     types = dict(acc.dtypes)
     assert types["SK_ID_CURR"] == "bigint" and types["TARGET"] == "int"
-    assert types["AMT_INCOME_TOTAL"] == "double" and types["DAYS_REGISTRATION"] == "int"
+    assert types["AMT_INCOME_TOTAL"] == "double" and types["DAYS_BIRTH"] == "int"
     assert acc.filter("EXT_SOURCE_1 IS NULL").count() == 2      # empty string -> NULL
+
+
+def test_fractional_days_registration_is_kept(spark, csv_file):
+    row = app_row(1).replace(",-3000.0,", ",-10116.041666666662,")
+    _, out = run(spark, csv_file, [row])
+    assert out["rejected"].count() == 0
+    assert out["accepted"].first()["DAYS_REGISTRATION"] == -10116.041666666662
 
 
 def test_cleaning_rules_are_traceable(spark, csv_file):

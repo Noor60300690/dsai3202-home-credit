@@ -62,6 +62,7 @@ is quarantined instead of silently becoming NULL.
 | `SK_ID_*` | bigint | SK_ID_CURR, SK_ID_PREV |
 | `TARGET` | int | |
 | `DAYS_*`, `MONTHS_BALANCE` (must be whole numbers) | int | DAYS_BIRTH, DAYS_EMPLOYED |
+| `DAYS_REGISTRATION` (exception, see §9) | double | |
 | `NAME_*`, `CODE_*`, `WEEKDAY_*` and listed categoricals | string | FLAG_OWN_CAR (Y/N), STATUS, CREDIT_TYPE, ORGANIZATION_TYPE |
 | everything else | double | AMT_*, CNT_*, EXT_SOURCE_*, FLAG_DOCUMENT_* |
 
@@ -129,3 +130,16 @@ traced back to the exact line of the source file.
    date we can't verify (see the leakage notes in [feature_spec.md](feature_spec.md)).
 4. Currency amounts are in one (unnamed) currency. `bureau.CREDIT_CURRENCY` is
    anonymised and not converted.
+
+## 9. Findings from profiling the full raw data
+
+`scripts/build_data_dictionary.py` was run on all 8 raw files (results in
+[profile_summary.json](profile_summary.json)):
+
+* Row counts match the documented Kaggle counts exactly for all 8 tables.
+* Every value can be cast to its silver type except **one**: `application_train`
+  `SK_ID_CURR = 408583` has `DAYS_REGISTRATION = -10116.041666666662` (10,116 days and
+  exactly one hour), while every other day count is a whole number. A fractional day is
+  plausible (a time-of-day leaking into the calculation), not corrupt data. So instead
+  of quarantining a labelled applicant, `DAYS_REGISTRATION` is typed as DOUBLE (decision
+  recorded in `spec.py`, covered by `test_fractional_days_registration_is_kept`).

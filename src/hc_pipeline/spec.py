@@ -20,6 +20,11 @@ STRING_COLUMNS = {
 }
 STRING_PREFIXES = ("NAME_", "CODE_", "WEEKDAY_")
 INT_PREFIXES = ("DAYS_", "MONTHS_BALANCE")
+# Day counts that are not always whole numbers in the real data (found by
+# scripts/build_data_dictionary.py): application_train SK_ID_CURR 408583 has
+# DAYS_REGISTRATION = -10116.0417 (10116 days + 1 hour). Typed as DOUBLE so the
+# applicant is kept instead of quarantined.
+DOUBLE_COLUMNS = {"DAYS_REGISTRATION"}
 
 
 def resolve_type(column: str) -> str:
@@ -30,6 +35,8 @@ def resolve_type(column: str) -> str:
         return "bigint"
     if column == "TARGET":
         return "int"
+    if column in DOUBLE_COLUMNS:
+        return "double"
     if column.startswith(INT_PREFIXES):
         return "int"
     return "double"
