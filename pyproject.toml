@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hc_pipeline"
+version = "1.0.0"
+description = "Home Credit Default Risk: ingestion-to-features pipeline (DSAI3202 Phase 1)"
+requires-python = ">=3.10"
+dependencies = []   # pyspark is provided by the Databricks runtime
+
+[project.scripts]
+hc-bronze = "hc_pipeline.cli:bronze"
+hc-silver = "hc_pipeline.cli:silver"
+hc-gate = "hc_pipeline.cli:gate"
+hc-publish = "hc_pipeline.cli:publish"
+hc-features = "hc_pipeline.cli:build_features"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

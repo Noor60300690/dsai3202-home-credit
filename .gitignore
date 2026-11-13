@@ -1,0 +1,23 @@
+# data never goes to Git (stored in ADLS; see manifest)
+data/
+*.csv
+!docs/*.csv
+*.duckdb
+*.zip
+
+# local spark / build outputs
+spark-warehouse/
+metastore_db/
+derby.log
+dist/
+build/
+*.egg-info/
+.databricks/
+__pycache__/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# credentials
+.env
+*.pem
+.databrickscfg

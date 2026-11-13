@@ -1,0 +1,11 @@
+# Local development, tests, EDA and bundle build. The Databricks runtime (DBR 15.4 LTS)
+# already provides pyspark; the job wheel has no extra dependencies.
+pyspark>=3.5,<4.1      # DBR 15.4 LTS ships 3.5; tests were run on 4.0.1
+pytest>=8
+duckdb>=1.1
+pandas>=2.1
+numpy>=1.26
+matplotlib>=3.8
+jupyter>=1.0
+pyyaml>=6
+build>=1.2

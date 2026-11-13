@@ -1,0 +1,137 @@
+# Databricks Asset Bundle: the ETL + quality gate + features job.
+#   databricks bundle validate -t dev
+#   databricks bundle deploy   -t dev
+#   databricks bundle run      -t dev home_credit_etl
+#   # controlled failure test on the bad sample:
+#   databricks bundle run -t dev home_credit_etl \
+#       --params source_version=test_bad_v1,enforce_expected_rows=false
+bundle:
+  name: home_credit_pipeline
+
+variables:
+  catalog:
+    description: Unity Catalog catalog that holds bronze/silver/gold/ops schemas
+    default: home_credit
+  raw_root:
+    description: ADLS folder with one sub-folder per raw data version (written by the ingestion job)
+    default: abfss://raw@CHANGE_ME_STORAGE_ACCOUNT.dfs.core.windows.net/home_credit
+  source_version:
+    description: Raw version folder to process
+    default: v1
+  node_type:
+    description: Driver VM size (single-node cluster)
+    default: Standard_D4ds_v5
+
+artifacts:
+  hc_pipeline_wheel:
+    type: whl
+    path: .
+    build: python -m build --wheel
+
+resources:
+  jobs:
+    home_credit_etl:
+      name: home_credit_etl_${bundle.target}
+      max_concurrent_runs: 1
+      tags:
+        project: dsai3202-home-credit
+        phase: "1"
+      parameters:
+        - {name: catalog, default: "${var.catalog}"}
+        - {name: raw_root, default: "${var.raw_root}"}
+        - {name: source_version, default: "${var.source_version}"}
+        - {name: enforce_expected_rows, default: "true"}
+      job_clusters:
+        - job_cluster_key: single_node
+          new_cluster:
+            spark_version: 15.4.x-scala2.12
+            node_type_id: ${var.node_type}
+            num_workers: 0
+            data_security_mode: SINGLE_USER
+            spark_conf:
+              spark.master: "local[*, 4]"
+              spark.databricks.cluster.profile: singleNode
+            custom_tags:
+              ResourceClass: SingleNode
+              project: dsai3202-home-credit
+      tasks:
+        - task_key: bronze_load
+          job_cluster_key: single_node
+          libraries: [{whl: ./dist/*.whl}]
+          python_wheel_task:
+            package_name: hc_pipeline
+            entry_point: hc-bronze
+            parameters:
+              - --catalog={{job.parameters.catalog}}
+              - --raw-root={{job.parameters.raw_root}}
+              - --source-version={{job.parameters.source_version}}
+              - --enforce-expected-rows={{job.parameters.enforce_expected_rows}}
+              - --run-id={{job.run_id}}
+              - --git-commit=${bundle.git.commit}
+        - task_key: silver_transform
+          depends_on: [{task_key: bronze_load}]
+          run_if: ALL_SUCCESS
+          job_cluster_key: single_node
+          libraries: [{whl: ./dist/*.whl}]
+          python_wheel_task:
+            package_name: hc_pipeline
+            entry_point: hc-silver
+            parameters:
+              - --catalog={{job.parameters.catalog}}
+              - --raw-root={{job.parameters.raw_root}}
+              - --source-version={{job.parameters.source_version}}
+              - --enforce-expected-rows={{job.parameters.enforce_expected_rows}}
+              - --run-id={{job.run_id}}
+              - --git-commit=${bundle.git.commit}
+        - task_key: quality_gate
+          depends_on: [{task_key: silver_transform}]
+          run_if: ALL_SUCCESS
+          job_cluster_key: single_node
+          libraries: [{whl: ./dist/*.whl}]
+          python_wheel_task:
+            package_name: hc_pipeline
+            entry_point: hc-gate
+            parameters:
+              - --catalog={{job.parameters.catalog}}
+              - --raw-root={{job.parameters.raw_root}}
+              - --source-version={{job.parameters.source_version}}
+              - --enforce-expected-rows={{job.parameters.enforce_expected_rows}}
+              - --run-id={{job.run_id}}
+              - --git-commit=${bundle.git.commit}
+        - task_key: publish_silver
+          depends_on: [{task_key: quality_gate}]
+          run_if: ALL_SUCCESS
+          job_cluster_key: single_node
+          libraries: [{whl: ./dist/*.whl}]
+          python_wheel_task:
+            package_name: hc_pipeline
+            entry_point: hc-publish
+            parameters:
+              - --catalog={{job.parameters.catalog}}
+              - --raw-root={{job.parameters.raw_root}}
+              - --source-version={{job.parameters.source_version}}
+              - --enforce-expected-rows={{job.parameters.enforce_expected_rows}}
+              - --run-id={{job.run_id}}
+              - --git-commit=${bundle.git.commit}
+        - task_key: build_features_v1
+          depends_on: [{task_key: publish_silver}]
+          run_if: ALL_SUCCESS
+          job_cluster_key: single_node
+          libraries: [{whl: ./dist/*.whl}]
+          python_wheel_task:
+            package_name: hc_pipeline
+            entry_point: hc-features
+            parameters:
+              - --catalog={{job.parameters.catalog}}
+              - --raw-root={{job.parameters.raw_root}}
+              - --source-version={{job.parameters.source_version}}
+              - --enforce-expected-rows={{job.parameters.enforce_expected_rows}}
+              - --run-id={{job.run_id}}
+              - --git-commit=${bundle.git.commit}
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: https://adb-CHANGE_ME.azuredatabricks.net

@@ -1,0 +1,166 @@
+"""Profile the raw Home Credit CSVs and generate the column-level data dictionary.
+
+Runs on a laptop with DuckDB (streams the CSVs, ~2-4 minutes for the full 2.5 GB):
+
+    pip install duckdb pandas
+    python scripts/build_data_dictionary.py --data-dir /path/to/home-credit-default-risk
+
+Outputs
+  docs/data_dictionary_columns.md   one section per table, one row per column
+  docs/data_dictionary_columns.csv  same content, machine readable
+  docs/profile_summary.json         row counts, key checks, contract violations
+
+It also checks the schema contract in src/hc_pipeline/spec.py against the real files:
+required columns present, values castable to the silver type, and key uniqueness.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+import duckdb
+import pandas as pd
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+from hc_pipeline.spec import DAYS_PLACEHOLDER, TABLES, resolve_type  # noqa: E402
+
+DUCK_TYPE = {"double": "DOUBLE", "int": "DOUBLE", "bigint": "DOUBLE"}
+
+
+def q(name: str) -> str:
+    return '"' + name.replace('"', '""') + '"'
+
+
+def load_descriptions(data_dir: Path) -> dict[tuple[str, str], tuple[str, str]]:
+    f = data_dir / "HomeCredit_columns_description.csv"
+    if not f.exists():
+        print("NOTE: HomeCredit_columns_description.csv not found; descriptions left blank")
+        return {}
+    d = pd.read_csv(f, encoding="latin-1")
+    out = {}
+    for _, r in d.iterrows():
+        files = (["application_train.csv", "application_test.csv"]
+                 if r["Table"] == "application_{train|test}.csv" else [r["Table"]])
+        for t in files:
+            out[(t, str(r["Row"]).strip())] = (str(r["Description"]).strip(),
+                                               "" if pd.isna(r.get("Special")) else str(r["Special"]))
+    return out
+
+
+def cleaning_note(spec, col: str) -> str:
+    notes = []
+    if col in spec.placeholder_null_columns:
+        notes.append(f"{DAYS_PLACEHOLDER} -> NULL" + (" (+DAYS_EMPLOYED_ANOM flag)" if col == "DAYS_EMPLOYED" else ""))
+    if col in spec.category_null_values:
+        notes.append(" / ".join(spec.category_null_values[col]) + " -> NULL")
+    for r in spec.rules:
+        if f"`{col}`" in r.violation_sql:
+            notes.append(f"reject if {r.name}")
+    if col in spec.primary_key:
+        notes.append("primary key" if len(spec.primary_key) == 1 else "part of primary key")
+    return "; ".join(notes)
+
+
+def profile_table(con, path: Path, spec, desc) -> tuple[list[dict], dict]:
+    con.execute(f"CREATE OR REPLACE VIEW t AS SELECT * FROM read_csv('{path.as_posix()}', "
+                "header=true, all_varchar=true, sample_size=-1)")
+    cols = [r[0] for r in con.execute("DESCRIBE t").fetchall()]
+    n = con.execute("SELECT count(*) FROM t").fetchone()[0]
+    exprs = []
+    for c in cols:
+        st = resolve_type(c)
+        exprs.append(f"count({q(c)})")
+        exprs.append(f"approx_count_distinct({q(c)})")
+        if st == "string":
+            exprs += ["NULL", "NULL", "0", f"mode({q(c)})"]
+        else:
+            v = f"try_cast({q(c)} AS DOUBLE)"
+            bad = f"({q(c)} IS NOT NULL AND {v} IS NULL)"
+            if st in ("int", "bigint"):
+                bad = f"({bad} OR ({v} IS NOT NULL AND {v} <> floor({v})))"
+            exprs += [f"min({v})", f"max({v})", f"sum(CASE WHEN {bad} THEN 1 ELSE 0 END)", "NULL"]
+    vals = con.execute(f"SELECT {', '.join(exprs)} FROM t").fetchone()
+    rows = []
+    for i, c in enumerate(cols):
+        nn, nd, mn, mx, bad, top = vals[i * 6:(i + 1) * 6]
+        d, special = desc.get((spec.file, c), ("", ""))
+        rows.append({
+            "table": spec.name, "column": c, "silver_type": resolve_type(c),
+            "required": c in spec.required_columns, "null_pct": round(100 * (1 - nn / n), 2) if n else None,
+            "distinct_approx": nd, "min": mn, "max": mx, "top_value": top,
+            "cast_failures": int(bad or 0), "cleaning_or_rule": cleaning_note(spec, c),
+            "description": d, "special": special})
+    summary = {"rows": n, "columns": len(cols),
+               "missing_required": [c for c in spec.required_columns if c not in cols],
+               "cast_failures": {r["column"]: r["cast_failures"] for r in rows if r["cast_failures"]}}
+    if spec.primary_key and not summary["missing_required"]:
+        k = ", ".join(q(c) for c in spec.primary_key)
+        summary["duplicate_keys"] = con.execute(
+            f"SELECT count(*) FROM (SELECT {k} FROM t GROUP BY {k} HAVING count(*) > 1)").fetchone()[0]
+    summary["exact_duplicate_rows"] = n - con.execute("SELECT count(*) FROM (SELECT DISTINCT * FROM t)").fetchone()[0]
+    return rows, summary
+
+
+def to_markdown(df: pd.DataFrame, summary: dict) -> str:
+    out = ["# Data dictionary - column level (generated)",
+           "",
+           "Generated by `scripts/build_data_dictionary.py` from the raw CSVs. Do not edit by hand;",
+           "re-run the script instead. Table-level documentation, keys and assumptions are in",
+           "[data_dictionary.md](data_dictionary.md).", ""]
+    for t, g in df.groupby("table", sort=False):
+        s = summary[t]
+        out += [f"## {t}", "",
+                f"Rows: **{s['rows']:,}** | Columns: {s['columns']} | Exact duplicate rows: "
+                f"{s['exact_duplicate_rows']:,}" + (f" | Duplicate primary keys: {s['duplicate_keys']:,}"
+                                                   if "duplicate_keys" in s else ""), ""]
+        if s["cast_failures"]:
+            out += [f"Cast failures against the silver type: `{s['cast_failures']}`", ""]
+        out += ["| Column | Silver type | Null % | Distinct (approx) | Min | Max | Cleaning / rule | Description |",
+                "|---|---|---:|---:|---:|---:|---|---|"]
+        for r in g.itertuples():
+            def fmt(v):
+                if v is None or (isinstance(v, float) and pd.isna(v)):
+                    return ""
+                return f"{int(v):,}" if float(v).is_integer() else f"{v:.4g}"
+            req = " *" if r.required else ""
+            desc = str(r.description).replace("|", "/")
+            out.append(f"| `{r.column}`{req} | {r.silver_type} | {r.null_pct} | {r.distinct_approx:,} | "
+                       f"{fmt(r.min)} | {fmt(r.max)} | {r.cleaning_or_rule} | {desc} |")
+        out.append("")
+    out.append("`*` = required by the schema contract (the job fails if the column is missing).")
+    return "\n".join(out) + "\n"
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--data-dir", required=True, type=Path)
+    ap.add_argument("--out-dir", default=ROOT / "docs", type=Path)
+    ap.add_argument("--memory-limit", default="4GB")
+    a = ap.parse_args()
+    con = duckdb.connect()
+    con.execute(f"SET memory_limit='{a.memory_limit}'")
+    desc = load_descriptions(a.data_dir)
+    all_rows, summary = [], {}
+    for spec in TABLES.values():
+        path = a.data_dir / spec.file
+        if not path.exists():
+            print(f"SKIP {spec.file}: not found")
+            continue
+        print(f"profiling {spec.file} ...", flush=True)
+        rows, s = profile_table(con, path, spec, desc)
+        all_rows += rows
+        summary[spec.name] = s
+        print(f"  {s['rows']:,} rows, {s['columns']} cols, cast failures: {s['cast_failures'] or 'none'}")
+    df = pd.DataFrame(all_rows)
+    a.out_dir.mkdir(parents=True, exist_ok=True)
+    df.to_csv(a.out_dir / "data_dictionary_columns.csv", index=False)
+    (a.out_dir / "data_dictionary_columns.md").write_text(to_markdown(df, summary))
+    (a.out_dir / "profile_summary.json").write_text(json.dumps(summary, indent=2, default=int))
+    print(f"wrote {a.out_dir}/data_dictionary_columns.md, .csv and profile_summary.json")
+
+
+if __name__ == "__main__":
+    main()
