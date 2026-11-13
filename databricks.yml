@@ -14,7 +14,7 @@ variables:
     default: home_credit
   raw_root:
     description: ADLS folder with one sub-folder per raw data version (written by the ingestion job)
-    default: abfss://raw@CHANGE_ME_STORAGE_ACCOUNT.dfs.core.windows.net/home_credit
+    default: abfss://raw@sahomecredit.dfs.core.windows.net/home_credit
   source_version:
     description: Raw version folder to process
     default: v1

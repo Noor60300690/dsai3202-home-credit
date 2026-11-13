@@ -7,7 +7,7 @@
 -- If the metastore has no root storage, give the catalog a managed location inside
 -- the project's ADLS Gen2 account (container `lakehouse`, created by the Azure setup).
 CREATE CATALOG IF NOT EXISTS home_credit
-  -- MANAGED LOCATION 'abfss://lakehouse@<storage_account>.dfs.core.windows.net/home_credit'
+  -- MANAGED LOCATION 'abfss://lakehouse@sahomecredit.dfs.core.windows.net/home_credit'
   COMMENT 'DSAI3202 Project: Home Credit Default Risk (Kaggle 2018). Loan default prediction.';
 
 -- 2. Schemas (medallion layers + operations) -----------------------------------------
@@ -26,7 +26,7 @@ CREATE SCHEMA IF NOT EXISTS home_credit.ops
 -- Uses the storage credential (access connector / managed identity) created during
 -- the Azure setup.
 -- CREATE EXTERNAL LOCATION IF NOT EXISTS home_credit_raw
---   URL 'abfss://raw@<storage_account>.dfs.core.windows.net/home_credit'
+--   URL 'abfss://raw@sahomecredit.dfs.core.windows.net/home_credit'
 --   WITH (STORAGE CREDENTIAL <credential_name>)
 --   COMMENT 'Versioned raw Kaggle files + manifest.json written by the ingestion job';
 -- GRANT READ FILES ON EXTERNAL LOCATION home_credit_raw TO `<job_user_or_group>`;
