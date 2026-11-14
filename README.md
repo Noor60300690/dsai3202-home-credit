@@ -101,7 +101,8 @@ python scripts/export_feature_spec.py
 ### ETL and quality
 
 * **Run IDs** (job `68730613515617`, workspace `adb-7405604671478132`): successful full run
-  `933468886966780` (2026-11-14, 20:34 → 21:15, raw version `v1`), rerun `TODO(Noor)`,
+  `933468886966780` (2026-11-14, 20:34 → 21:15, raw version `v1`), rerun `854216896755038`
+  (21:17 → 21:53),
   controlled failure `TODO(Lercia)`. Earlier runs: `1073714360410313` = rehearsal on synthetic
   data (passed); `1109123459055160` and `601695391609100` = failed in `bronze_load` because the
   storage key secret was saved incorrectly (fixed, see run instructions).
@@ -142,7 +143,14 @@ python scripts/export_feature_spec.py
   Thresholds: `src/hc_pipeline/quality.py`, `spec.py`.
 * **Safe rerun:** bronze is skipped when the version + SHA-256 match (`skipped_unchanged`);
   silver is overwritten (same input → same output); the quarantine is replaced per
-  (table, source version), so a rerun doesn't duplicate it. Evidence: TODO(Noor).
+  (table, source version), so a rerun doesn't duplicate it. **Evidence (rerun
+  `854216896755038` on the same input `v1`):** `bronze_load` logged `skipped_unchanged` for all
+  8 tables; silver, quarantine, gate and features produced **identical** results (58,489,893
+  rows in = accepted, 0 rejected, 0 blocking failures, 356,255 feature rows, same split).
+  Known gap: both runs logged `sha256=None`, i.e. the file hashes in `manifest.json` were not
+  picked up (manifest field names differ from what `read_manifest` expects); the skip
+  decision therefore relied on the version folder only. TODO(Noor+Lercia): align the manifest
+  format and re-run.
 * **Controlled failure:** `source_version=test_bad_v1` with `enforce_expected_rows=false`.
   Expected: `validity.reject_rate` fails on `application_train`, the job stops at
   `quality_gate`, and silver keeps the previous run's `hc.run_id`. Evidence: TODO(Lercia).
@@ -179,8 +187,13 @@ Interpretation: see the last cell of the notebook.
 per applicant: **356,255 rows** (307,511 train + 48,744 test applications).
 `gold_split_v1` (stratified, seed 3202): train 246,009 (19,860 defaults) / test 61,502
 (4,965 defaults), default rate 8.07 % in both. Definitions, sources, availability and leakage handling:
-[docs/feature_spec.md](docs/feature_spec.md). Output version: Delta version `TODO(Noor)`,
-`hc.git_commit` = `TODO`.
+[docs/feature_spec.md](docs/feature_spec.md). Output versions are recorded as Delta table
+history plus table properties (`hc.run_id`, `hc.source_version`, `hc.git_commit`,
+`hc.silver_versions`); query them with `DESCRIBE HISTORY dbw_homecredit.default.gold_features_v1`
+and `SHOW TBLPROPERTIES ...` (see `sql/02_verify_catalog_and_runs.sql`). Silver Delta versions
+after the rerun: application_train 274, bureau 59, bureau_balance 35, previous_application 99,
+installments_payments 38, pos_cash_balance 39, credit_card_balance 69, application_test 271
+(versions are high because each column comment is its own metadata commit).
 
 ## Resource use and contributions
 
