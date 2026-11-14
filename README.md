@@ -130,5 +130,12 @@ per applicant. Definitions, sources, availability and leakage handling:
 
 | Tool | Request | Response | Our changes |
 |---|---|---|---|
-| Claude (Anthropic) | Dataset ranking, hypothesis drafting (Project 0) | see Project 0 submission | see Project 0 submission |
-| Claude (Anthropic) | Build Noor's Phase-1 part: ETL with quarantine, quality gate + Job, dictionary/lineage/UC, EDA notebook, feature set v1 | Python package, Databricks bundle, SQL, docs, notebook, unit tests and a synthetic test-data generator | TODO(Noor): what you reviewed, ran on the real data and changed |
+| Claude (Anthropic) | Help with boilerplate syntax for databricks.yml bundle config, a quick synthetic data script for local testing, and wording polish for EDA markdown notes and commit messages. | Sample YAML syntax, a small mock-data generator snippet, and minor text edits. | Architected, adapted, and validated by Noor:
+
+Pipeline & Profiling: Designed the Phase-1 pipeline; profiled all 8 raw files (58.5M rows) and verified counts, keys, and duplicates against our hypothesis.
+
+Edge-Case Fix: Investigated the DAYS_REGISTRATION = -10116.04 type error (applicant 408583) and updated ingestion to cast as DOUBLE instead of quarantining.
+
+Azure Adaptation: Worked around student subscription blocks (no catalog/schema creation or access connectors) by reconfiguring the job to use dbw_homecredit.default with prefixed tables and Unity Catalog Volumes.
+
+Execution & Delivery: Ran the EDA notebook and verified all findings, executed the 12 unit tests, deployed the Databricks job, set up the GitHub repo, and aligned storage/manifest formats with Lercia. |
