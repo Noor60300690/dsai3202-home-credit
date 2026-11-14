@@ -147,7 +147,12 @@ python scripts/export_feature_spec.py
   Expected: `validity.reject_rate` fails on `application_train`, the job stops at
   `quality_gate`, and silver keeps the previous run's `hc.run_id`. Evidence: TODO(Lercia).
 * **Catalog:** tables with comments (from Kaggle's description file), PK constraints and
-  `hc.*` properties; see `sql/02_verify_catalog_and_runs.sql`. Screenshot: TODO(Noor).
+  `hc.*` properties; see `sql/02_verify_catalog_and_runs.sql`.
+  Evidence: [successful job run](docs/evidence/01_job_run_success.png) (5 tasks green, 40 min
+  on single-node Standard_D4ds_v5: bronze 11m40s, silver 13m12s, gate 30s, publish 13m33s,
+  features 1m19s) and [Unity Catalog registration](docs/evidence/02_catalog_registration.png)
+  (31 tables in `dbw_homecredit.default`, table description, `SK_ID_CURR` primary key,
+  column comments from Kaggle's description file). Lineage: TODO(Noor).
 
 ### EDA
 
