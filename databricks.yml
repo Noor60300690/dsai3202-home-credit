@@ -134,4 +134,4 @@ targets:
     mode: development
     default: true
     workspace:
-      host: https://adb-CHANGE_ME.azuredatabricks.net
+      host: https://adb-7405604671478132.12.azuredatabricks.net
