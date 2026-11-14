@@ -11,7 +11,8 @@ bundle:
 variables:
   catalog:
     description: Unity Catalog catalog that holds bronze/silver/gold/ops schemas
-    default: home_credit
+    # The workspace catalog created with dbw-homecredit (no CREATE CATALOG rights needed)
+    default: dbw_homecredit
   raw_root:
     description: ADLS folder with one sub-folder per raw data version (written by the ingestion job)
     default: abfss://raw@sahomecredit.dfs.core.windows.net/home_credit

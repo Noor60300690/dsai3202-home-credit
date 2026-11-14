@@ -1,4 +1,7 @@
 -- One-time Unity Catalog setup for the Home Credit project.
+-- NOTE: our workspace already has the catalog `dbw_homecredit` (the workspace catalog) and
+-- students cannot create catalogs, so the job uses dbw_homecredit (databricks.yml, var
+-- `catalog`). Replace home_credit with dbw_homecredit below; skip CREATE CATALOG.
 -- Run in a Databricks SQL editor or notebook as a user with CREATE CATALOG rights.
 -- The job itself creates the schemas if they are missing (CREATE SCHEMA IF NOT EXISTS),
 -- so after this file only the catalog, the external location and the grants are needed.
