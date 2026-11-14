@@ -22,8 +22,11 @@ catalog, EDA, features).
 
 * **Source:** [Home Credit Default Risk](https://www.kaggle.com/c/home-credit-default-risk/data),
   8 CSV tables + column descriptions, ≈2.5 GB uncompressed, ≈58 M rows.
-* **Versions:** raw version folder `TODO(Lercia)`, manifest
-  `raw/home_credit/<version>/manifest.json` (SHA-256 per file).
+* **Versions:** raw version folder `v1` in
+  `abfss://raw@sahomecredit.dfs.core.windows.net/home_credit/v1/`, written by the ingestion
+  job; its manifest (file names + SHA-256 per file) is copied in
+  [docs/manifest_v1.json](docs/manifest_v1.json). Code version = git commit (stored on every
+  table as `hc.git_commit`); output versions = Delta table history (see Results).
 * **Schema:** tables, keys, types, cleaning rules: [docs/data_dictionary.md](docs/data_dictionary.md);
   every column profiled: [docs/data_dictionary_columns.md](docs/data_dictionary_columns.md).
 * **Lineage:** [docs/lineage.md](docs/lineage.md).
