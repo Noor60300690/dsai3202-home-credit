@@ -100,13 +100,41 @@ python scripts/export_feature_spec.py
 
 ### ETL and quality
 
-* **Run IDs:** successful run `TODO(Noor)`, rerun `TODO(Noor)`, controlled failure `TODO(Lercia)`.
+* **Run IDs** (job `68730613515617`, workspace `adb-7405604671478132`): successful full run
+  `933468886966780` (2026-11-14, 20:34 → 21:15, raw version `v1`), rerun `TODO(Noor)`,
+  controlled failure `TODO(Lercia)`. Earlier runs: `1073714360410313` = rehearsal on synthetic
+  data (passed); `1109123459055160` and `601695391609100` = failed in `bronze_load` because the
+  storage key secret was saved incorrectly (fixed, see run instructions).
 * **Order of operations (silver):** trim + empty→NULL → cast with `try_cast` (failures =
   type violations) → business rules → exact duplicates → key conflicts → cleaning of
   accepted rows (365243 / XNA → NULL, `DAYS_EMPLOYED_ANOM` flag). Details:
   [data_dictionary.md §3-5](docs/data_dictionary.md).
-* **Row accounting:** TODO(Noor): paste the output of the row-accounting query in
-  `sql/02_verify_catalog_and_runs.sql` (rows in = accepted + rejected per table).
+* **Row accounting** (run `933468886966780`, full data; rows in = accepted + rejected for every table):
+
+  | Table | Rows in (bronze) | Accepted (silver) | Rejected (quarantine) | Values cleaned (→ NULL) |
+  |---|---:|---:|---:|---|
+  | application_train | 307,511 | 307,511 | 0 | DAYS_EMPLOYED 55,374 · ORGANIZATION_TYPE 55,374 · CODE_GENDER 4 · NAME_FAMILY_STATUS 2 |
+  | application_test | 48,744 | 48,744 | 0 | DAYS_EMPLOYED 9,274 · ORGANIZATION_TYPE 9,274 |
+  | bureau | 1,716,428 | 1,716,428 | 0 | – |
+  | bureau_balance | 27,299,925 | 27,299,925 | 0 | – |
+  | previous_application | 1,670,214 | 1,670,214 | 0 | NAME_CASH_LOAN_PURPOSE 1,600,579 · DAYS_FIRST_DRAWING 934,444 · DAYS_TERMINATION 225,913 · DAYS_LAST_DUE 211,221 · DAYS_LAST_DUE_1ST_VERSION 93,864 · DAYS_FIRST_DUE 40,645 · CODE_REJECT_REASON 5,244 |
+  | installments_payments | 13,605,401 | 13,605,401 | 0 | – |
+  | pos_cash_balance | 10,001,358 | 10,001,358 | 0 | – |
+  | credit_card_balance | 3,840,312 | 3,840,312 | 0 | – |
+  | **Total** | **58,489,893** | **58,489,893** | **0** | |
+
+  Quality gate: 58 checks, **0 blocking failures**; all row counts match the documented
+  Kaggle counts exactly; train default rate 8.07 %; 0 train/test ID overlap.
+  Warnings: `EXT_SOURCE_1` is 56.4 % NULL (expected, kept as NULL); 11.43 % of
+  `bureau_balance` rows reference a `SK_ID_BUREAU` that is not in `bureau` (orphans, kept in
+  silver; they cannot reach an applicant, so the feature joins drop them).
+  Observation: the 55,374 `ORGANIZATION_TYPE = 'XNA'` rows are exactly the 55,374
+  `DAYS_EMPLOYED = 365243` rows, i.e. applicants without an employer (mostly pensioners),
+  which supports keeping `DAYS_EMPLOYED_ANOM` as a feature.
+  Zero rejected rows is the expected result on this source: the profiler found one type
+  failure (`DAYS_REGISTRATION`, applicant 408583), which was resolved in the schema
+  contract, and no duplicates. The quarantine path is shown by the synthetic rehearsal
+  (3 duplicate `bureau` rows quarantined) and by the controlled failure test.
 * **When publication stops (BLOCK checks):** missing required column; rows in ≠ accepted
   + rejected; empty table; row count > 1 % off the documented count (full data only);
   reject rate > 1 %; duplicate primary key in the accepted rows; train default rate outside
@@ -141,7 +169,9 @@ Interpretation: see the last cell of the notebook.
 ### Features
 
 `gold_features_v1`: 50 features in two groups (24 application, 26 history), one row
-per applicant. Definitions, sources, availability and leakage handling:
+per applicant: **356,255 rows** (307,511 train + 48,744 test applications).
+`gold_split_v1` (stratified, seed 3202): train 246,009 (19,860 defaults) / test 61,502
+(4,965 defaults), default rate 8.07 % in both. Definitions, sources, availability and leakage handling:
 [docs/feature_spec.md](docs/feature_spec.md). Output version: Delta version `TODO(Noor)`,
 `hc.git_commit` = `TODO`.
 
