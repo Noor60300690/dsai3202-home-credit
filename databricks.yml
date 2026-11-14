@@ -55,6 +55,10 @@ resources:
             spark_conf:
               spark.master: "local[*, 4]"
               spark.databricks.cluster.profile: singleNode
+              # Read the raw ADLS container with the storage account key, kept in a
+              # Databricks secret scope (never in Git). Needed because creating an
+              # Access Connector / storage credential is blocked by the course policy.
+              fs.azure.account.key.sahomecredit.dfs.core.windows.net: "{{secrets/hc/sahomecredit-key}}"
             custom_tags:
               ResourceClass: SingleNode
               project: dsai3202-home-credit
