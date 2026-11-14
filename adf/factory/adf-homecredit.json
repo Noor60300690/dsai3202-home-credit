@@ -1,0 +1,15 @@
+{
+	"name": "adf-homecredit",
+	"properties": {
+		"trustModeClaimForMi": {
+			"value": "Disabled",
+			"editable": true
+		}
+	},
+	"location": "qatarcentral",
+	"identity": {
+		"type": "SystemAssigned",
+		"principalId": "0255d2c0-808e-469d-a73f-36daf41228da",
+		"tenantId": "b30f4b44-46c6-4070-9997-f87b38d4771c"
+	}
+}
