@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime, timezone
 
@@ -47,8 +48,12 @@ def _args(argv=None) -> argparse.Namespace:
 def _spark(local: bool) -> SparkSession:
     if not local:
         return SparkSession.builder.getOrCreate()
-    return (SparkSession.builder.master("local[2]").appName("hc-pipeline-local")
-            .config("spark.ui.enabled", "false").config("spark.sql.shuffle.partitions", "4")
+    # Local mode is sized for a laptop running the FULL dataset (58 M rows).
+    # Override with HC_DRIVER_MEMORY / HC_SHUFFLE_PARTITIONS if needed.
+    return (SparkSession.builder.master("local[*]").appName("hc-pipeline-local")
+            .config("spark.ui.enabled", "false")
+            .config("spark.driver.memory", os.environ.get("HC_DRIVER_MEMORY", "4g"))
+            .config("spark.sql.shuffle.partitions", os.environ.get("HC_SHUFFLE_PARTITIONS", "16"))
             .config("spark.sql.warehouse.dir", "spark-warehouse")
             .enableHiveSupport().getOrCreate())
 
