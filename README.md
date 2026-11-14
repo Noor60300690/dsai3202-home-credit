@@ -152,7 +152,9 @@ python scripts/export_feature_spec.py
   on single-node Standard_D4ds_v5: bronze 11m40s, silver 13m12s, gate 30s, publish 13m33s,
   features 1m19s) and [Unity Catalog registration](docs/evidence/02_catalog_registration.png)
   (31 tables in `dbw_homecredit.default`, table description, `SK_ID_CURR` primary key,
-  column comments from Kaggle's description file). Lineage: TODO(Noor).
+  column comments from Kaggle's description file). [Lineage](docs/evidence/03_lineage.png)
+  recorded automatically by Unity Catalog: `silver_staging_application_train` → (job) →
+  `silver_application_train` → (job) → `gold_features_v1`.
 
 ### EDA
 
