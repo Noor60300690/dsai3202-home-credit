@@ -33,11 +33,16 @@ catalog, EDA, features).
 
   | Layer | Location | Content |
   |---|---|---|
-  | raw | `abfss://raw@<acct>.dfs.core.windows.net/home_credit/<version>/` | original CSVs + manifest (never overwritten) |
-  | bronze | `home_credit.bronze.*` | all-string Delta copy + `_source_*` metadata |
-  | silver | `home_credit.silver.*` (staged in `silver_staging`) | typed, cleaned, de-duplicated |
-  | gold | `home_credit.gold.features_v1`, `split_v1`, `feature_registry` | model inputs |
-  | ops | `home_credit.ops.run_log`, `table_metrics`, `quality_results`, `quarantine` | evidence |
+  | raw | `abfss://raw@sahomecredit.dfs.core.windows.net/home_credit/<version>/` | original CSVs + manifest (never overwritten) |
+  | bronze | `dbw_homecredit.default.bronze_<table>` | all-string Delta copy + `_source_*` metadata |
+  | silver | `dbw_homecredit.default.silver_<table>` (staged in `silver_staging_<table>`) | typed, cleaned, de-duplicated |
+  | gold | `dbw_homecredit.default.gold_features_v1`, `gold_split_v1`, `gold_feature_registry` | model inputs |
+  | ops | `dbw_homecredit.default.ops_run_log`, `ops_table_metrics`, `ops_quality_results`, `ops_quarantine` | evidence |
+
+  **Why one schema with prefixes:** in our course workspace students have `USE CATALOG` on
+  the workspace catalog `dbw_homecredit` but cannot create catalogs or schemas; we can
+  create tables in `dbw_homecredit.default`. The code supports both layouts (job parameter
+  `single_schema`; empty = separate `bronze`/`silver`/`gold`/`ops` schemas).
 
 * **Architecture diagram:** TODO(both): diagram naming ADLS Gen2, Databricks (Jobs, Unity
   Catalog, Delta), Git repo and their roles.
@@ -46,22 +51,36 @@ catalog, EDA, features).
 
 **Prerequisites:** Azure resource group with ADLS Gen2 + a Unity-Catalog-enabled
 Databricks workspace (setup: TODO(Lercia)); the ingestion job has written a version
-folder; Databricks CLI ≥ 0.230 authenticated (`databricks auth login`).
+folder; Databricks CLI ≥ 0.230 (`brew install databricks/tap/databricks`).
+
+**Storage access:** creating an Access Connector / storage credential is blocked by the
+course subscription policy, so the job cluster reads ADLS with the storage account key,
+kept in a Databricks secret scope (never in Git). One-time setup:
 
 ```bash
-# 1. one-time catalog setup (SQL editor): sql/01_unity_catalog_setup.sql
-# 2. set your workspace host + storage account in databricks.yml (variables raw_root, host)
+databricks auth login --host https://adb-7405604671478132.12.azuredatabricks.net
+databricks secrets create-scope hc
+read -s "KEY?Paste the key1 value of sahomecredit (Access keys): "
+databricks secrets put-secret hc sahomecredit-key --string-value "$KEY" && unset KEY
+```
+
+**Deploy and run** (workspace host, storage account and catalog are already set in
+`databricks.yml`):
+
+```bash
 pip install -r requirements-dev.txt
 databricks bundle validate -t dev
 databricks bundle deploy -t dev            # builds the wheel, creates the job
-databricks bundle run -t dev home_credit_etl --params source_version=v1
+databricks bundle run -t dev home_credit_etl                     # raw version v1 (default)
+# other inputs, e.g. the controlled failure test:
+databricks bundle run -t dev home_credit_etl --params source_version=test_bad_v1,enforce_expected_rows=false
 ```
 
 Job `home_credit_etl` (single-node `Standard_D4ds_v5`, DBR 15.4 LTS):
 
 `bronze_load → silver_transform → quality_gate → publish_silver → build_features_v1`
 
-Each task logs to `ops.run_log`. `quality_gate` raises if any **BLOCK** check fails, so
+Each task logs to `ops_run_log`. `quality_gate` raises if any **BLOCK** check fails, so
 `publish_silver` and `build_features_v1` don't run and the published silver tables stay
 unchanged.
 
@@ -72,7 +91,7 @@ pip install -r requirements-dev.txt
 python scripts/make_synthetic_sample.py --out data/raw/synthetic_v1        # or use the real CSVs
 PYTHONPATH=src python -m hc_pipeline.cli all --local --raw-root data/raw \
     --source-version synthetic_v1 --enforce-expected-rows false
-pytest -q                                                                   # 11 unit tests
+pytest -q                                                                   # 12 unit tests
 python scripts/build_data_dictionary.py --data-dir <folder with Kaggle CSVs>
 python scripts/export_feature_spec.py
 ```
@@ -106,11 +125,22 @@ python scripts/export_feature_spec.py
 
 Notebook: [notebooks/01_eda.ipynb](notebooks/01_eda.ipynb) (full population; one
 documented 5 % systematic sample for a scatter plot). Figures: `docs/eda/`.
-Findings: TODO(Noor): paste the summary cell output plus interpretation.
+Findings (full data, 58.5 M rows):
+
+* **Target imbalance:** 8.07 % defaults → ROC-AUC and recall at a fixed approval rate, stratified split; never accuracy.
+* **Missing values:** 71 of 121 application columns have NULLs, 41 are > 50 % empty (EXT_SOURCE_1: 56 %) → kept as NULL in silver, imputed in training only.
+* **DAYS_EMPLOYED placeholder:** 55,374 rows (default rate 5.40 % vs 8.66 %) → NULL + `DAYS_EMPLOYED_ANOM` flag, because the placeholder itself is informative.
+* **Outliers:** max income is 248× its 99th percentile (159 extreme rows) → ratio features / log scale; tree models are robust.
+* **Strongest single signals:** EXT_SOURCE_3 (−0.179), EXT_SOURCE_2 (−0.160), EXT_SOURCE_1 (−0.155), DAYS_BIRTH (+0.078).
+* **Collinear pairs (|r| > 0.8):** AMT_CREDIT & AMT_GOODS_PRICE, CNT_CHILDREN & CNT_FAM_MEMBERS → matters for the logistic baseline.
+* **History coverage:** 86 % have bureau records, 95 % previous applications; 1 % have neither.
+* **Hypothesis signal:** default rate is 6.8 % for applicants never late on past installments vs 11.9 % for those late on > 20 % of installments.
+
+Interpretation: see the last cell of the notebook.
 
 ### Features
 
-`gold.features_v1`: 50 features in two groups (24 application, 26 history), one row
+`gold_features_v1`: 50 features in two groups (24 application, 26 history), one row
 per applicant. Definitions, sources, availability and leakage handling:
 [docs/feature_spec.md](docs/feature_spec.md). Output version: Delta version `TODO(Noor)`,
 `hc.git_commit` = `TODO`.

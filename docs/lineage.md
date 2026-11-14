@@ -1,5 +1,8 @@
 # Lineage
 
+> Table names below use the logical layer names (`bronze.x`, `silver.x`). In our workspace
+> they are created as `dbw_homecredit.default.bronze_x`, `silver_x`, `gold_x`, `ops_x` (see README).
+
 ## Layer-to-layer
 
 ```mermaid
@@ -38,17 +41,17 @@ flowchart LR
 * **Table level:** each table carries properties set by the job:
 
   ```sql
-  SHOW TBLPROPERTIES home_credit.silver.application_train;
+  SHOW TBLPROPERTIES dbw_homecredit.default.silver_application_train;
   -- hc.source_version, hc.run_id, hc.git_commit, hc.quality_gate = passed,
   -- hc.lineage = raw/v1/application_train.csv -> bronze.application_train -> silver.application_train
-  SHOW TBLPROPERTIES home_credit.gold.features_v1;
+  SHOW TBLPROPERTIES dbw_homecredit.default.gold_features_v1;
   -- hc.feature_version = v1, hc.silver_versions = {"application_train": "3", ...}
   ```
 
   `hc.silver_versions` records the Delta version of each silver input, so a feature
   table can be reproduced with `SELECT ... FROM silver.x VERSION AS OF n`.
 * **Unity Catalog:** UC records table- and column-level lineage automatically for jobs
-  that read and write UC tables. Open *Catalog → home_credit → silver →
-  application_train → Lineage* and take a screenshot for the README evidence.
+  that read and write UC tables. Open *Catalog → dbw_homecredit → default →
+  silver_application_train → Lineage* and take a screenshot for the README evidence.
 * **Code version:** `hc.git_commit` (from `${bundle.git.commit}`) ties each output to
   the commit that produced it.
