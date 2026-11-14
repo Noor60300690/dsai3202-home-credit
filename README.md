@@ -4,8 +4,6 @@ DSAI3202 Fall 2026, Project Phase 1: data pipeline, ETL and feature foundations.
 Team: Lercia (ingestion, Azure setup, failure test, resource use) · Noor (ETL, quality gate,
 catalog, EDA, features).
 
-> Status markers: **TODO(Lercia)** / **TODO(Noor)** / **TODO(both)** = fill in after the Azure runs.
-
 ## Project and hypothesis
 
 * **Problem:** estimate the probability that a loan applicant will have payment
