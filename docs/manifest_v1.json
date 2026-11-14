@@ -1,0 +1,2 @@
+pbpaste > docs/manifest_v1.json
+cat docs/manifest_v1.json
