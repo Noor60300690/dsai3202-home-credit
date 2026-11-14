@@ -13,8 +13,17 @@ SCHEMAS = ("bronze", "silver_staging", "silver", "gold", "ops")
 
 
 class Store:
-    def __init__(self, spark: SparkSession, catalog: str):
-        self.spark, self.catalog = spark, catalog
+    """`single_schema`: when set (e.g. "default"), every layer lives in that one schema
+    and the layer becomes a table-name prefix (bronze_x, silver_x, ...). Used when the
+    user may create tables but not schemas in the catalog."""
+
+    def __init__(self, spark: SparkSession, catalog: str, single_schema: str = ""):
+        self.spark, self.catalog, self.single_schema = spark, catalog, single_schema
+
+    def _parts(self, schema: str, table: str) -> tuple[str, str]:
+        if self.single_schema:
+            return self.single_schema, f"{schema}_{table}"
+        return schema, table
 
     # naming ---------------------------------------------------------------
     def fq(self, schema: str, table: str) -> str:
@@ -61,9 +70,12 @@ class Store:
 
 class UnityCatalogStore(Store):
     def fq(self, schema: str, table: str) -> str:
-        return f"`{self.catalog}`.`{schema}`.`{table}`"
+        s, t = self._parts(schema, table)
+        return f"`{self.catalog}`.`{s}`.`{t}`"
 
     def ensure_schemas(self) -> None:
+        if self.single_schema:
+            return
         for s in SCHEMAS:
             self.spark.sql(f"CREATE SCHEMA IF NOT EXISTS `{self.catalog}`.`{s}`")
 
@@ -85,6 +97,7 @@ class UnityCatalogStore(Store):
         """Table/column comments and an informational PRIMARY KEY. Returns warnings
         instead of failing, because constraints need Unity Catalog permissions."""
         name, warnings = self.fq(schema, table), []
+        table = self._parts(schema, table)[1]
         esc = lambda s: s.replace("'", "\\'")  # noqa: E731
         try:
             self.spark.sql(f"COMMENT ON TABLE {name} IS '{esc(comment)}'")
@@ -104,10 +117,11 @@ class UnityCatalogStore(Store):
 
 class LocalStore(Store):
     def fq(self, schema: str, table: str) -> str:
-        return f"{self.catalog}_{schema}.{table}"
+        s, t = self._parts(schema, table)
+        return f"{self.catalog}_{s}.{t}"
 
     def ensure_schemas(self) -> None:
-        for s in SCHEMAS:
+        for s in ([self.single_schema] if self.single_schema else SCHEMAS):
             self.spark.sql(f"CREATE DATABASE IF NOT EXISTS {self.catalog}_{s}")
 
     def overwrite(self, df, schema, table, props=None):
@@ -129,5 +143,5 @@ class LocalStore(Store):
             df.write.format("parquet").saveAsTable(name)
 
 
-def make_store(spark: SparkSession, catalog: str, local: bool) -> Store:
-    return (LocalStore if local else UnityCatalogStore)(spark, catalog)
+def make_store(spark: SparkSession, catalog: str, local: bool, single_schema: str = "") -> Store:
+    return (LocalStore if local else UnityCatalogStore)(spark, catalog, single_schema)

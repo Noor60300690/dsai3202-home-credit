@@ -42,6 +42,9 @@ resources:
         - {name: raw_root, default: "${var.raw_root}"}
         - {name: source_version, default: "${var.source_version}"}
         - {name: enforce_expected_rows, default: "true"}
+        # "default" = all layers as prefixed tables in dbw_homecredit.default
+        # (we may create tables there, but not schemas). Empty = separate schemas.
+        - {name: single_schema, default: "default"}
       job_clusters:
         - job_cluster_key: single_node
           new_cluster:
@@ -67,6 +70,7 @@ resources:
               - --raw-root={{job.parameters.raw_root}}
               - --source-version={{job.parameters.source_version}}
               - --enforce-expected-rows={{job.parameters.enforce_expected_rows}}
+              - --single-schema={{job.parameters.single_schema}}
               - --run-id={{job.run_id}}
               - --git-commit=${bundle.git.commit}
         - task_key: silver_transform
@@ -82,6 +86,7 @@ resources:
               - --raw-root={{job.parameters.raw_root}}
               - --source-version={{job.parameters.source_version}}
               - --enforce-expected-rows={{job.parameters.enforce_expected_rows}}
+              - --single-schema={{job.parameters.single_schema}}
               - --run-id={{job.run_id}}
               - --git-commit=${bundle.git.commit}
         - task_key: quality_gate
@@ -97,6 +102,7 @@ resources:
               - --raw-root={{job.parameters.raw_root}}
               - --source-version={{job.parameters.source_version}}
               - --enforce-expected-rows={{job.parameters.enforce_expected_rows}}
+              - --single-schema={{job.parameters.single_schema}}
               - --run-id={{job.run_id}}
               - --git-commit=${bundle.git.commit}
         - task_key: publish_silver
@@ -112,6 +118,7 @@ resources:
               - --raw-root={{job.parameters.raw_root}}
               - --source-version={{job.parameters.source_version}}
               - --enforce-expected-rows={{job.parameters.enforce_expected_rows}}
+              - --single-schema={{job.parameters.single_schema}}
               - --run-id={{job.run_id}}
               - --git-commit=${bundle.git.commit}
         - task_key: build_features_v1
@@ -127,6 +134,7 @@ resources:
               - --raw-root={{job.parameters.raw_root}}
               - --source-version={{job.parameters.source_version}}
               - --enforce-expected-rows={{job.parameters.enforce_expected_rows}}
+              - --single-schema={{job.parameters.single_schema}}
               - --run-id={{job.run_id}}
               - --git-commit=${bundle.git.commit}
 

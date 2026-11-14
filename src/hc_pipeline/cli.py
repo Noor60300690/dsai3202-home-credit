@@ -27,6 +27,8 @@ def _args(argv=None) -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument("task", choices=["bronze", "silver", "gate", "publish", "features", "all"])
     p.add_argument("--catalog", default="home_credit")
+    p.add_argument("--single-schema", default="",
+                   help="Put all layers in this one schema with prefixes (bronze_x, silver_x, ...).")
     p.add_argument("--raw-root", required=False, default="",
                    help="Folder that holds one sub-folder per source version.")
     p.add_argument("--source-version", required=True,
@@ -230,7 +232,7 @@ TASKS = {"bronze": task_bronze, "silver": task_silver, "gate": task_gate,
 def main(argv=None) -> None:
     a = _args(argv)
     spark = _spark(a.local)
-    store = make_store(spark, a.catalog, a.local)
+    store = make_store(spark, a.catalog, a.local, a.single_schema.strip())
     store.ensure_schemas()
     for t in (["bronze", "silver", "gate", "publish", "features"] if a.task == "all" else [a.task]):
         TASKS[t](spark, store, a)
