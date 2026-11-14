@@ -148,10 +148,12 @@ python scripts/export_feature_spec.py
   `854216896755038` on the same input `v1`):** `bronze_load` logged `skipped_unchanged` for all
   8 tables; silver, quarantine, gate and features produced **identical** results (58,489,893
   rows in = accepted, 0 rejected, 0 blocking failures, 356,255 feature rows, same split).
-  Known gap: both runs logged `sha256=None`, i.e. the file hashes in `manifest.json` were not
-  picked up (manifest field names differ from what `read_manifest` expects); the skip
-  decision therefore relied on the version folder only. TODO(Noor+Lercia): align the manifest
-  format and re-run.
+  Known gap: both runs logged `sha256=None`: the ingestion manifest
+  ([docs/manifest_v1.json](docs/manifest_v1.json)) names the field `filename`, which
+  `read_manifest` did not recognise, so the hashes were not copied into the bronze table
+  properties and the skip relied on the version folder. Fixed in `cli.py` afterwards; the
+  next bronze load records the SHA-256 per file. The input is identified by the version folder
+  `v1` and the manifest (file sizes + SHA-256).
 * **Controlled failure:** `source_version=test_bad_v1` with `enforce_expected_rows=false`.
   Expected: `validity.reject_rate` fails on `application_train`, the job stops at
   `quality_gate`, and silver keeps the previous run's `hc.run_id`. Evidence: TODO(Lercia).

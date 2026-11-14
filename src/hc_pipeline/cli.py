@@ -89,7 +89,8 @@ def read_manifest(spark: SparkSession, raw_dir: str) -> dict[str, str]:
                 for k, v in entries.items()}
     out = {}
     for e in entries:
-        name = e.get("name") or e.get("file") or e.get("path") or e.get("file_name")
+        name = (e.get("filename") or e.get("name") or e.get("file") or e.get("path")
+                or e.get("file_name"))
         out[str(name).split("/")[-1]] = e.get("sha256") or e.get("hash") or e.get("md5")
     return out
 
