@@ -265,18 +265,21 @@ installments_payments 38, pos_cash_balance 39, credit_card_balance 69, applicati
 
 ## Resource use and contributions
 
-* **Cost / performance choice (Lercia):** The ingestion notebook ran a CSV-versus-Delta
-  comparison on `application_train.csv`, measuring read time and storage footprint,
-  and saved `phase1_measurements.json`. **TODO(Lercia):** paste the actual measured
-  sizes, timings and environment details here, then justify the choice. Proposed
-  approach: retain original CSVs in immutable versioned raw storage for fidelity and
-  auditability; use Delta for processed tables because of transactional updates,
-  schema management and efficient repeated analytical reads. Do not claim Delta is
-  faster or cheaper for this workload until the recorded results support it.
-* **Cleanup (Lercia):** The ingestion notebook's temporary failure-test directory
-  was targeted for removal after the integrity test, followed by a check that the
-  original `v1` data and manifest remained. **TODO:** attach the cleanup verification
-  evidence. To control ongoing costs after grading: terminate the Databricks compute;
+* **Cost and performance choice (Lercia):** We compared CSV and Delta formats using the same
+  307,511 rows from `application_train.csv` (ingestion notebook, measurement saved as
+  `phase1_measurements.json`). CSV occupied 158.4 MB and required 4.18 seconds to read.
+  Delta occupied 23.5 MB, required 2.21 seconds to read, and took 14.57 seconds to write.
+  Delta reduced measured storage size by approximately 85% and improved read performance
+  by approximately 47%. We therefore selected CSV for preserving the original raw dataset
+  and Delta for processed Bronze, Silver and Gold tables, where efficient queries and
+  reliable updates are important.
+* **Cleanup (Lercia):** The ingestion notebook
+  ([notebooks/01_homecredit_ingestion.ipynb](notebooks/01_homecredit_ingestion.ipynb))
+  includes a cleanup step that removes temporary files generated during the controlled
+  failure test. The cleanup verification confirmed that the temporary failure-test folder
+  was removed while the original versioned dataset and its manifest remained intact.
+  Azure resources should be stopped or deleted after grading to prevent unnecessary costs.
+  To control ongoing costs after grading: terminate the Databricks compute;
   stop scheduled job triggers; inspect ADF pipeline triggers and disable any active
   ones; review Azure storage and other billable resources; delete the resource group
   only after the team has backed up evidence and confirmed the instructor no longer
