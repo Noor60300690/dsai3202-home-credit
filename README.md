@@ -1,8 +1,7 @@
 # Predicting Loan Default with Borrowing-History Features
 
 DSAI3202 Fall 2026, Project Phase 1: data pipeline, ETL and feature foundations.
-Team: Lercia (ingestion, Azure setup, failure test, resource use) · Noor (ETL, quality gate,
-catalog, EDA, features).
+Team: Lercia · Noor
 
 ## Project and hypothesis
 
