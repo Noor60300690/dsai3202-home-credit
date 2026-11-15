@@ -103,7 +103,7 @@ python scripts/export_feature_spec.py
 * **Run IDs** (job `68730613515617`, workspace `adb-7405604671478132`): successful full run
   `933468886966780` (2026-11-14, 20:34 → 21:15, raw version `v1`), rerun `854216896755038`
   (21:17 → 21:53),
-  controlled failure `TODO(Lercia)`. Earlier runs: `1073714360410313` = rehearsal on synthetic
+  controlled failure `1032959196744401` (2026-11-15, test input `test_bad_v1`). Earlier runs: `1073714360410313` = rehearsal on synthetic
   data (passed); `1109123459055160` and `601695391609100` = failed in `bronze_load` because the
   storage key secret was saved incorrectly (fixed, see run instructions).
 * **Order of operations (silver):** trim + empty→NULL → cast with `try_cast` (failures =
@@ -153,9 +153,22 @@ python scripts/export_feature_spec.py
   properties and the skip relied on the version folder. Fixed in `cli.py` afterwards; the
   next bronze load records the SHA-256 per file. The input is identified by the version folder
   `v1` and the manifest (file sizes + SHA-256).
-* **Controlled failure:** `source_version=test_bad_v1` with `enforce_expected_rows=false`.
-  Expected: `validity.reject_rate` fails on `application_train`, the job stops at
-  `quality_gate`, and silver keeps the previous run's `hc.run_id`. Evidence: TODO(Lercia).
+* **Controlled failure** (run `1032959196744401`, 2026-11-15): separate test input
+  `test_bad_v1`, generated with `scripts/make_synthetic_sample.py --inject-errors` (500
+  synthetic applicants with planted errors) and uploaded to the Unity Catalog Volume
+  `/Volumes/dbw_homecredit/default/raw/home_credit/test_bad_v1`; run with
+  `raw_root=/Volumes/dbw_homecredit/default/raw/home_credit,source_version=test_bad_v1,enforce_expected_rows=false`.
+  Result: `bronze_load` and `silver_transform` succeeded (bad rows quarantined), then
+  `quality_gate` **failed** with
+  `QualityGateError: 1 blocking quality check(s) failed; silver tables were NOT published`
+  on `application_train`, `validity.reject_rate` = **15.86 %** (69 of 435 rows; limit 1 %), reasons:
+  `type:AMT_INCOME_TOTAL` 44, `non_positive_income` 44, `invalid_target` 21,
+  `null_key:SK_ID_CURR` 5, `duplicate_row` 5 (a row can have several reasons).
+  `publish_silver` and `build_features_v1` were **skipped**, so the published `silver_*` and
+  `gold_*` tables still hold the full-data run `854216896755038`. The rejected rows with
+  their reasons are in `ops_quarantine` (`source_version = 'test_bad_v1'`). Side effect: the
+  `bronze_*` tables now hold the last loaded input (the test sample); the next `v1` run
+  reloads them. Screenshot: TODO(Noor).
 * **Catalog:** tables with comments (from Kaggle's description file), PK constraints and
   `hc.*` properties; see `sql/02_verify_catalog_and_runs.sql`.
   Evidence: [successful job run](docs/evidence/01_job_run_success.png) (5 tasks green, 40 min
