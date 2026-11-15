@@ -15,7 +15,7 @@ Team: Lercia · Noor
 * **Baseline plan:** logistic regression on the application group; comparison: LightGBM on
   application + history groups; control: LightGBM on the application group only. Same
   stratified 80/20 split (`gold.split_v1`) for all three.
-* **Approved refinements:** TODO(both): none so far.
+* **Approved refinements:** None.
 
 ## Dataset and architecture
 
@@ -294,7 +294,9 @@ installments_payments 38, pos_cash_balance 39, credit_card_balance 69, applicati
   * Noor: ETL bronze→silver with quarantine; quality gate, row accounting and Databricks Job
     (bundle); data dictionary, lineage and Unity Catalog registration; EDA notebook;
     feature set v1, split and feature spec; unit tests.
-* **Reused code:** TODO(both): cite lab code adapted (Lab-3…7) and what was changed.
+* **Reused code:**
+  * Noor's part (ETL, quality gate, job, catalog, EDA, features): none; written for this project.
+  * Lercia's part: TODO(Lercia): name any lab code adapted (lab number + what was changed), or write "none".
 
 ## AI use
 
