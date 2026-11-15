@@ -85,13 +85,43 @@ flowchart LR
   remained intact. Add the exported source notebook to the repository and link it here
   once its final repository path is confirmed.
 * **Azure Data Factory:** factory `adf-homecredit-lercia` was created and connected to
-  this GitHub repository with `/adf` as the root folder. **Pending verification:**
-  an actual ADF ingestion pipeline definition saved/published in Git and a successful
-  ADF Copy activity run. Creating the factory and Git connection alone does not prove
-  a pipeline was executed.
+  this GitHub repository with `/adf` as the root folder for version control. The initial
+  Home Credit dataset was uploaded directly to ADLS Gen2 rather than through an ADF Copy activity.
 * **Manifest verification:** the manifest was uploaded to the ADLS folder; a complete
   destination-side SHA-256 comparison for all nine required CSVs has not yet been
   documented. The original notebook hash test is separate from this check.
+
+### Raw ingestion notebook evidence (Lercia)
+
+The following screenshots document the notebook's file manifest, repeat-run behavior,
+validation checks, and dataset accessibility. All paths are relative to this repository.
+
+**Figure 1 — SHA-256 manifest verification (dataset `v1`).** The notebook lists 10 CSV files
+and their SHA-256 hashes and reports that manifest verification completed.
+
+![Figure 1 — SHA-256 manifest verification](docs/evidence/01_manifest_verification.png)
+
+**Figure 2 — Idempotent rerun.** All 10 unchanged CSV files were identified as identical
+and skipped during a repeated notebook execution.
+
+![Figure 2 — Idempotent ingestion: identical files skipped](docs/evidence/02_idempotent_ingestion.png)
+
+**Figure 3 — File integrity and duplicate checks.** The notebook reports that all 10 files
+match its manifest, no duplicate CSV filenames were detected, and the idempotency check passed.
+
+![Figure 3 — File integrity and idempotency validation](docs/evidence/03_integrity_validation.png)
+
+**Figure 4 — Dataset accessibility and source file sizes.** The notebook lists the Home Credit
+CSV files available in the Databricks Unity Catalog volume, including their individual sizes.
+This is a source-file inspection, not the CSV-versus-Delta benchmark.
+
+![Figure 4 — Home Credit dataset file sizes](docs/evidence/05_dataset_file_size.png)
+
+**Notebook controlled failure test.** A deliberately modified test copy produced a different
+SHA-256 hash and triggered `ValueError: INGESTION FAILED: File integrity verification failed.`
+This notebook-level test is separate from the Databricks Job quality-gate failure documented
+under Results and features. The repository screenshot `04_controlled_failure.png` documents
+the Job-level test, not the notebook hash-mismatch test.
 
 ## Run the pipeline
 
@@ -218,21 +248,24 @@ flowchart LR
   needs the live resources. Deleting the resource group permanently removes its
   resources and stored data.
 * **Each member's work:**
-  * Lercia: Created Azure resource group, ADLS Gen2 storage account/container,
-    Databricks workspace and Unity Catalog volume; prepared versioned raw data and
-    SHA-256 manifest; implemented and ran ingestion/idempotency checks and a
-    notebook-level controlled integrity failure; ran CSV-versus-Delta measurements;
-    uploaded the raw dataset and manifest to ADLS; created Azure Data Factory and
-    connected its Git configuration to the shared repository. Pending: final
-    ADF pipeline export, controlled failure Job run ID/screenshot, destination hash
-    verification, and recorded measurement results.
+  * Lercia: Created the Azure resource group, ADLS Gen2 storage account/container,
+    Databricks workspace and Unity Catalog volume; uploaded the versioned raw dataset
+    and manifest to ADLS; developed and tested notebook-level SHA-256 manifest checks,
+    unchanged-file skipping, deliberate hash-mismatch detection and temporary-file
+    cleanup; measured CSV-versus-Delta size and read performance; and created Azure
+    Data Factory with GitHub integration. The raw dataset upload was performed directly
+    through Azure Storage, not through an ADF Copy pipeline.
   * Noor: ETL bronze → silver with quarantine; quality gate, row accounting and the
     Databricks job; data dictionary, lineage and Unity Catalog registration; EDA notebook;
     feature set v1, split and feature spec; unit tests; full run, safe rerun and
     controlled failure run on Databricks.
 * **Reused code and adaptations:**
   * Noor's part: none; written for this project.
-  * Lercia's part: Used and adapted code from lab 3,  and the for the data engineering part (Labs 04-06) helped with the Databrick notebook.
+  * Lercia's part: Referenced Lab 03 for Azure environment setup and applied data
+    engineering concepts from Labs 04–06 when developing the Databricks notebook.
+    Direct copying of specific lab code has not been established; the notebook's
+    SHA-256 validation, idempotent rerun, controlled failure and performance comparison
+    were adapted to this project's requirements.
 
 ## AI use
 
