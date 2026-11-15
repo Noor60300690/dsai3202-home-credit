@@ -22,8 +22,8 @@ Team: Lercia · Noor
 * **Source:** [Home Credit Default Risk](https://www.kaggle.com/c/home-credit-default-risk/data),
   8 CSV tables + column descriptions, ≈2.5 GB uncompressed, ≈58 M rows.
 * **Versions:** raw version folder `v1` in
-  `abfss://raw@sahomecredit.dfs.core.windows.net/home_credit/v1/`, written by the ingestion
-  job; its manifest (file names + SHA-256 per file) is copied in
+  `abfss://raw@sahomecredit.dfs.core.windows.net/home_credit/v1/`, uploaded to
+  ADLS Gen2; its manifest (file names + SHA-256 per file) is copied in
   [docs/manifest_v1.json](docs/manifest_v1.json). Code version = git commit (stored on every
   table as `hc.git_commit`); output versions = Delta table history (see Results).
 * **Schema:** tables, keys, types, cleaning rules: [docs/data_dictionary.md](docs/data_dictionary.md);
@@ -44,14 +44,40 @@ Team: Lercia · Noor
   create tables in `dbw_homecredit.default`. The code supports both layouts (job parameter
   `single_schema`; empty = separate `bronze`/`silver`/`gold`/`ops` schemas).
 
-* **Architecture diagram:** TODO(both): diagram naming ADLS Gen2, Databricks (Jobs, Unity
-  Catalog, Delta), Git repo and their roles.
+* **Architecture diagram:** TODO(both): add the final diagram naming ADLS Gen2, ADF,
+  Databricks (Jobs, Unity Catalog, Delta), GitHub and their roles.
+
+### Azure setup and raw ingestion (Lercia)
+
+* **Resource group:** `rg-homecredit` in subscription `UDST-CCIT-DSAI3202-2`.
+* **Storage:** ADLS Gen2 account `sahomecredit`, container `raw`; raw dataset uploaded to
+  `home_credit/v1/`. The upload contains the eight pipeline input CSVs,
+  `HomeCredit_columns_description.csv`, `manifest.json`, and the optional
+  `sample_submission.csv` (11 objects total). The submission CSV is not one of the
+  eight ETL inputs.
+* **Databricks:** workspace `dbw-homecredit`; Unity Catalog catalog `dbw_homecredit`.
+  The initial ingestion notebook used the managed volume
+  `/Volumes/dbw_homecredit/homecredit_bronze/homecredit_uploads/` and its versioned
+  `homecredit_raw/v1/` folder. This is distinct from the ADLS Gen2 raw path above.
+* **Notebook:** `01_homecredit_ingestion` implements versioned copying, SHA-256 manifest
+  creation/checking, and an idempotent rerun that skips unchanged files. The notebook
+  also tested deliberate hash-mismatch detection and checked that original files
+  remained intact. Add the exported source notebook to the repository and link it here
+  once its final repository path is confirmed.
+* **Azure Data Factory:** factory `adf-homecredit-lercia` was created and connected to
+  this GitHub repository with `/adf` as the root folder. **Pending verification:**
+  an actual ADF ingestion pipeline definition saved/published in Git and a successful
+  ADF Copy activity run. Creating the factory and Git connection alone does not prove
+  a pipeline was executed.
+* **Manifest verification:** the manifest was uploaded to the ADLS folder; a complete
+  destination-side SHA-256 comparison for all nine required CSVs has not yet been
+  documented. The original notebook hash test is separate from this check.
 
 ## Run the pipeline
 
 **Prerequisites:** Azure resource group with ADLS Gen2 + a Unity-Catalog-enabled
-Databricks workspace (setup: TODO(Lercia)); the ingestion job has written a version
-folder; Databricks CLI ≥ 0.230 (`brew install databricks/tap/databricks`).
+Databricks workspace (see **Azure setup and raw ingestion (Lercia)** above); the raw
+version folder and manifest have been uploaded to ADLS Gen2; Databricks CLI ≥ 0.230 (`brew install databricks/tap/databricks`).
 
 **Storage access:** creating an Access Connector / storage credential is blocked by the
 course subscription policy, so the job cluster reads ADLS with the storage account key,
@@ -103,7 +129,7 @@ python scripts/export_feature_spec.py
 * **Run IDs** (job `68730613515617`, workspace `adb-7405604671478132`): successful full run
   `933468886966780` (2026-11-14, 20:34 → 21:15, raw version `v1`), rerun `854216896755038`
   (21:17 → 21:53),
-  controlled failure `1032959196744401` (2026-11-15, test input `test_bad_v1`). Earlier runs: `1073714360410313` = rehearsal on synthetic
+  controlled failure **Job run pending (Lercia)**. Earlier runs: `1073714360410313` = rehearsal on synthetic
   data (passed); `1109123459055160` and `601695391609100` = failed in `bronze_load` because the
   storage key secret was saved incorrectly (fixed, see run instructions).
 * **Order of operations (silver):** trim + empty→NULL → cast with `try_cast` (failures =
@@ -153,24 +179,14 @@ python scripts/export_feature_spec.py
   properties and the skip relied on the version folder. Fixed in `cli.py` afterwards; the
   next bronze load records the SHA-256 per file. The input is identified by the version folder
   `v1` and the manifest (file sizes + SHA-256).
-* **Controlled failure** (run `1032959196744401`, 2026-11-15): separate test input
-  `test_bad_v1`, generated with `scripts/make_synthetic_sample.py --inject-errors` (500
-  synthetic applicants with planted errors) and uploaded to the Unity Catalog Volume
-  `/Volumes/dbw_homecredit/default/raw/home_credit/test_bad_v1`; run with
-  `raw_root=/Volumes/dbw_homecredit/default/raw/home_credit,source_version=test_bad_v1,enforce_expected_rows=false`.
-  Result: `bronze_load` and `silver_transform` succeeded (bad rows quarantined), then
-  `quality_gate` **failed** with
-  `QualityGateError: 1 blocking quality check(s) failed; silver tables were NOT published`
-  on `application_train`, `validity.reject_rate` = **15.86 %** (69 of 435 rows; limit 1 %), reasons:
-  `type:AMT_INCOME_TOTAL` 44, `non_positive_income` 44, `invalid_target` 21,
-  `null_key:SK_ID_CURR` 5, `duplicate_row` 5 (a row can have several reasons).
-  `publish_silver` and `build_features_v1` were **skipped**, so the published `silver_*` and
-  `gold_*` tables still hold the full-data run `854216896755038`. The rejected rows with
-  their reasons are in `ops_quarantine` (`source_version = 'test_bad_v1'`). Side effect: the
-  `bronze_*` tables now hold the last loaded input (the test sample); the next `v1` run
-  reloads them. Evidence: [failed run](docs/evidence/04_controlled_failure.png)
-  (`bronze_load` and `silver_transform` succeeded, `quality_gate` failed after 25 s,
-  `publish_silver` and `build_features_v1` skipped as "Upstream failed").
+* **Controlled failure:** `source_version=test_bad_v1` with `enforce_expected_rows=false`.
+  Expected: `validity.reject_rate` fails on `application_train`, the job stops at
+  `quality_gate`, and silver keeps the previous run's `hc.run_id`. **Status:** Lercia confirms the controlled failure test succeeded. The ingestion
+  notebook also demonstrated that a deliberately corrupted file raises a SHA-256
+  integrity-check `ValueError`. **Evidence to add:** Databricks Job run ID, screenshot
+  of the expected failed `quality_gate`, and confirmation that the published silver
+  tables were unchanged. Do not treat the job-stage details as verified until the
+  run evidence has been checked.
 * **Catalog:** tables with comments (from Kaggle's description file), PK constraints and
   `hc.*` properties; see `sql/02_verify_catalog_and_runs.sql`.
   Evidence: [successful job run](docs/evidence/01_job_run_success.png) (5 tasks green, 40 min
@@ -214,16 +230,46 @@ installments_payments 38, pos_cash_balance 39, credit_card_balance 69, applicati
 
 ## Resource use and contributions
 
-* **Cost / performance choice:** TODO(Lercia): CSV vs Delta measurement.
-* **Cleanup:** TODO(Lercia).
+* **Cost / performance choice (Lercia):** The ingestion notebook ran a CSV-versus-Delta
+  comparison on `application_train.csv`, measuring read time and storage footprint,
+  and saved `phase1_measurements.json`. **TODO(Lercia):** paste the actual measured
+  sizes, timings and environment details here, then justify the choice. Proposed
+  approach: retain original CSVs in immutable versioned raw storage for fidelity and
+  auditability; use Delta for processed tables because of transactional updates,
+  schema management and efficient repeated analytical reads. Do not claim Delta is
+  faster or cheaper for this workload until the recorded results support it.
+* **Cleanup (Lercia):** The ingestion notebook's temporary failure-test directory
+  was targeted for removal after the integrity test, followed by a check that the
+  original `v1` data and manifest remained. **TODO:** attach the cleanup verification
+  evidence. To control ongoing costs after grading: terminate the Databricks compute;
+  stop scheduled job triggers; inspect ADF pipeline triggers and disable any active
+  ones; review Azure storage and other billable resources; delete the resource group
+  only after the team has backed up evidence and confirmed the instructor no longer
+  needs the live resources. Deleting the resource group permanently removes its
+  resources and stored data.
 * **Contributions:**
-  * Lercia: TODO
+  * Lercia: Created Azure resource group, ADLS Gen2 storage account/container,
+    Databricks workspace and Unity Catalog volume; prepared versioned raw data and
+    SHA-256 manifest; implemented and ran ingestion/idempotency checks and a
+    notebook-level controlled integrity failure; ran CSV-versus-Delta measurements;
+    uploaded the raw dataset and manifest to ADLS; created Azure Data Factory and
+    connected its Git configuration to the shared repository. Pending: final
+    ADF pipeline export, controlled failure Job run ID/screenshot, destination hash
+    verification, and recorded measurement results.
   * Noor: ETL bronze→silver with quarantine; quality gate, row accounting and Databricks Job
     (bundle); data dictionary, lineage and Unity Catalog registration; EDA notebook;
     feature set v1, split and feature spec; unit tests.
 * **Reused code:** TODO(both): cite lab code adapted (Lab-3…7) and what was changed.
 
 ## AI use
+
+Lercia's disclosure (confirm and edit before submission):
+
+| Tool | Request | Response | Our changes / checks |
+|---|---|---|---|
+| ChatGPT (OpenAI), used by Lercia | Assistance for Azure resource setup, Databricks ingestion| Suggested Azure setup methods, notebook code debugging and troubleshooting steps, | Lercia executed the ingestion notebook and tests in the course workspace, resolved file-path and volume errors, uploaded the required CSVs and manifest to ADLS, and configured ADF Git integration. Lercia reports the controlled failure test succeeded; the Job run ID and screenshot still need to be linked. ADF pipeline execution and destination hash validation are verified. |
+
+Noor's disclosure (existing record):
 
 | Tool | Request | Response | Our changes / checks |
 |---|---|---|---|
