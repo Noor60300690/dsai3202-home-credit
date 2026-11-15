@@ -122,6 +122,12 @@ This notebook-level test is separate from the Databricks Job quality-gate failur
 under Results and features. The repository screenshot `04_controlled_failure.png` documents
 the Job-level test, not the notebook hash-mismatch test.
 
+### Azure Data Factory Copy activity — successful debug run (Lercia)
+
+![Figure 7 — Successful ADF Copy activity](docs/evidence/07_adf_copy_success.png)
+
+**Figure 7.** Azure Data Factory `PL_HomeCredit_Copy` debug execution showing the `Copy_HomeCredit_CSV` activity succeeded.
+
 ## Run the pipeline
 
 * **Prerequisites:** the Azure resources above (resource group, ADLS Gen2 `sahomecredit`,
