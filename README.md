@@ -44,8 +44,30 @@ Team: Lercia · Noor
   create tables in `dbw_homecredit.default`. The code supports both layouts (job parameter
   `single_schema`; empty = separate `bronze`/`silver`/`gold`/`ops` schemas).
 
-* **Architecture diagram:** TODO(both): add the final diagram naming ADLS Gen2, ADF,
-  Databricks (Jobs, Unity Catalog, Delta), GitHub and their roles.
+* **Architecture diagram** (Azure services and their roles):
+
+```mermaid
+flowchart LR
+  K["Kaggle Home Credit<br/>8 CSVs, 2.5 GB"] --> A[("ADLS Gen2 sahomecredit<br/>raw/home_credit/v1 + manifest")]
+  ADF["Azure Data Factory<br/>ingestion, Git-linked"] -.-> A
+  K --> N["Databricks ingestion notebook<br/>versioned copy + SHA-256 manifest"]
+  N --> V[("Unity Catalog Volume<br/>homecredit_raw/v1")]
+  GH["GitHub repo<br/>code + databricks.yml"] -->|bundle deploy| B
+  subgraph DBX["Azure Databricks job home_credit_etl (single node)"]
+    B["bronze_load"] --> S["silver_transform<br/>+ quarantine"] --> G{"quality_gate"}
+    G -->|pass| P["publish_silver"] --> F["build_features_v1"]
+    G -->|fail| X["stop: silver unchanged"]
+  end
+  A -->|"storage key from secret scope"| B
+  subgraph UC["Unity Catalog dbw_homecredit.default (Delta tables)"]
+    T1[("bronze_* and silver_*")]
+    T2[("gold_features_v1, gold_split_v1")]
+    T3[("ops_* run log, metrics, quarantine")]
+  end
+  P --> T1
+  F --> T2
+  S --> T3
+```
 
 ### Azure setup and raw ingestion (Lercia)
 
