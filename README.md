@@ -299,7 +299,7 @@ installments_payments 38, pos_cash_balance 39, credit_card_balance 69, applicati
     feature set v1, split and feature spec; unit tests.
 * **Reused code:**
   * Noor's part (ETL, quality gate, job, catalog, EDA, features): none; written for this project.
-  * Lercia's part: TODO(Lercia): name any lab code adapted (lab number + what was changed), or write "none".
+  * Lercia's part: Used and adapted code from lab 3,  and the for the data engineering part (Labs 04-06) helped with the Databrick notebook.
 
 ## AI use
 
