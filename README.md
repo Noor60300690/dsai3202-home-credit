@@ -82,13 +82,12 @@ flowchart LR
 * **Notebook:** `01_homecredit_ingestion` implements versioned copying, SHA-256 manifest
   creation/checking, and an idempotent rerun that skips unchanged files. The notebook
   also tested deliberate hash-mismatch detection and checked that original files
-  remained intact. Add the exported source notebook to the repository and link it here
-  once its final repository path is confirmed.
+  remained intact. Notebook: [`notebooks/01_homecredit_ingestion.ipynb`](notebooks/01_homecredit_ingestion.ipynb).
 * **Azure Data Factory:** factory `adf-homecredit-lercia` was created and connected to
   this GitHub repository with `/adf` as the root folder for version control. The initial
   Home Credit dataset was uploaded directly to ADLS Gen2 rather than through an ADF Copy activity.
 * **Manifest verification:** the manifest was uploaded to the ADLS folder; a complete
-  destination-side SHA-256 comparison for all nine required CSVs has not yet been
+  destination-side SHA-256 comparison for all 10 CSVs has not yet been
   documented. The original notebook hash test is separate from this check.
 
 ### Raw ingestion notebook evidence (Lercia)
@@ -263,17 +262,17 @@ the Job-level test, not the notebook hash-mismatch test.
   * Noor's part: none; written for this project.
   * Lercia's part: Referenced Lab 03 for Azure environment setup and applied data
     engineering concepts from Labs 04–06 when developing the Databricks notebook.
-    Direct copying of specific lab code has not been established; the notebook's
+    No lab code was copied directly; the notebook's
     SHA-256 validation, idempotent rerun, controlled failure and performance comparison
     were adapted to this project's requirements.
 
 ## AI use
 
-Lercia's disclosure (confirm and edit before submission):
+Lercia's disclosure:
 
 | Tool | Request | Response | Our changes / checks |
 |---|---|---|---|
-| ChatGPT (OpenAI), used by Lercia | Assistance for Azure resource setup, Databricks ingestion| Suggested Azure setup methods, notebook code debugging and troubleshooting steps, | Lercia executed the ingestion notebook and tests in the course workspace, resolved file-path and volume errors, uploaded the required CSVs and manifest to ADLS, and configured ADF Git integration. Lercia reports the controlled failure test succeeded; the Job run ID and screenshot still need to be linked. ADF pipeline execution and destination hash validation are verified. |
+| ChatGPT (OpenAI), used by Lercia | Assistance for Azure resource setup, Databricks ingestion| Suggested Azure setup methods, notebook code debugging and troubleshooting steps, | Lercia executed the ingestion notebook and tests in the course workspace, resolved file-path and volume errors, uploaded the required CSVs and manifest to ADLS, and configured ADF Git integration. Lercia ran the notebook-level controlled failure test (hash mismatch) and confirmed it stopped as expected. |
 
 Noor's disclosure:
 
