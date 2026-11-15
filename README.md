@@ -1,49 +1,47 @@
 # Predicting Loan Default with Borrowing-History Features
 
-DSAI3202 Fall 2026, Project Phase 1: data pipeline, ETL and feature foundations.
+DSAI3202 Fall 2026, Project Phase 1: data pipeline, ETL and features.
 Team: Lercia · Noor
 
 ## Project and hypothesis
 
-* **Problem:** estimate the probability that a loan applicant will have payment
-  difficulties, to support approve / manual review / reject decisions for applicants with
-  little credit history.
-* **Target:** `TARGET` in `application_train` (1 = payment difficulties, ≈8 % positive).
-* **Hypothesis:** adding features built from past borrowing history (bureau credits,
-  previous applications, installment repayment behaviour) improves ROC-AUC by **≥ 0.03**
-  over a model that uses only the application form.
-* **Baseline plan:** logistic regression on the application group; comparison: LightGBM on
-  application + history groups; control: LightGBM on the application group only. Same
-  stratified 80/20 split (`gold.split_v1`) for all three.
+* **Problem:** predict whether a loan applicant will have trouble repaying, to help decide
+  to approve, review or reject applicants with little credit history.
+* **Target:** `TARGET` in `application_train` (1 = payment difficulties, 0 = no
+  difficulties; about 8 % are 1).
+* **Baseline plan:** logistic regression using only the application form. Comparison:
+  LightGBM using the application form plus borrowing history. Control: LightGBM using only
+  the application form. All three use the same fixed 80/20 split (`gold_split_v1`).
+* **Hypothesis:** adding borrowing-history features (credit bureau, previous applications,
+  past repayments) improves ROC-AUC by at least **0.03** compared with the application form
+  alone.
 * **Approved refinements:** None.
 
 ## Dataset and architecture
 
-* **Source:** [Home Credit Default Risk](https://www.kaggle.com/c/home-credit-default-risk/data),
-  8 CSV tables + column descriptions, ≈2.5 GB uncompressed, ≈58 M rows.
-* **Versions:** raw version folder `v1` in
-  `abfss://raw@sahomecredit.dfs.core.windows.net/home_credit/v1/`, uploaded to
-  ADLS Gen2; its manifest (file names + SHA-256 per file) is copied in
-  [docs/manifest_v1.json](docs/manifest_v1.json). Code version = git commit (stored on every
-  table as `hc.git_commit`); output versions = Delta table history (see Results).
-* **Schema:** tables, keys, types, cleaning rules: [docs/data_dictionary.md](docs/data_dictionary.md);
-  every column profiled: [docs/data_dictionary_columns.md](docs/data_dictionary_columns.md).
-* **Lineage:** [docs/lineage.md](docs/lineage.md).
+* **Source link:** [Home Credit Default Risk (Kaggle)](https://www.kaggle.com/c/home-credit-default-risk/data)
+* **Size:** 8 CSV tables + 1 column-description file, about 2.5 GB, 58,489,893 rows.
+* **Versions:**
+  * Input: raw folder `v1` in `abfss://raw@sahomecredit.dfs.core.windows.net/home_credit/v1/`,
+    with a manifest of file names, sizes and SHA-256 hashes (copy: [docs/manifest_v1.json](docs/manifest_v1.json)).
+  * Code: the git commit, saved on every output table (`hc.git_commit`).
+  * Outputs: Delta table versions (see Results and features).
+* **Schema:** tables, keys, types, assumptions and cleaning rules in
+  [docs/data_dictionary.md](docs/data_dictionary.md); every column (type, missing %, range,
+  description) in [docs/data_dictionary_columns.md](docs/data_dictionary_columns.md); links
+  from raw files to outputs in [docs/lineage.md](docs/lineage.md).
 * **Storage layout:**
 
   | Layer | Location | Content |
   |---|---|---|
-  | raw | `abfss://raw@sahomecredit.dfs.core.windows.net/home_credit/<version>/` | original CSVs + manifest (never overwritten) |
-  | bronze | `dbw_homecredit.default.bronze_<table>` | all-string Delta copy + `_source_*` metadata |
-  | silver | `dbw_homecredit.default.silver_<table>` (staged in `silver_staging_<table>`) | typed, cleaned, de-duplicated |
-  | gold | `dbw_homecredit.default.gold_features_v1`, `gold_split_v1`, `gold_feature_registry` | model inputs |
-  | ops | `dbw_homecredit.default.ops_run_log`, `ops_table_metrics`, `ops_quality_results`, `ops_quarantine` | evidence |
+  | raw | `sahomecredit` container `raw`, folder `home_credit/v1/` | original CSVs + manifest, never changed |
+  | bronze | `dbw_homecredit.default.bronze_<table>` | exact copy of the CSVs, all values as text |
+  | silver | `dbw_homecredit.default.silver_<table>` | typed, cleaned, no duplicates |
+  | gold | `dbw_homecredit.default.gold_features_v1`, `gold_split_v1` | features and train/test split |
+  | ops | `dbw_homecredit.default.ops_*` | run log, row counts, quality results, rejected rows |
 
-  **Why one schema with prefixes:** in our course workspace students have `USE CATALOG` on
-  the workspace catalog `dbw_homecredit` but cannot create catalogs or schemas; we can
-  create tables in `dbw_homecredit.default`. The code supports both layouts (job parameter
-  `single_schema`; empty = separate `bronze`/`silver`/`gold`/`ops` schemas).
-
+  All tables are Delta tables in Unity Catalog. They share one schema (`default`) with a
+  layer prefix because students cannot create new schemas in our course workspace.
 * **Architecture diagram** (Azure services and their roles):
 
 ```mermaid
@@ -97,171 +95,105 @@ flowchart LR
 
 ## Run the pipeline
 
-**Prerequisites:** Azure resource group with ADLS Gen2 + a Unity-Catalog-enabled
-Databricks workspace (see **Azure setup and raw ingestion (Lercia)** above); the raw
-version folder and manifest have been uploaded to ADLS Gen2; Databricks CLI ≥ 0.230 (`brew install databricks/tap/databricks`).
+* **Prerequisites:** the Azure resources above (resource group, ADLS Gen2 `sahomecredit`,
+  Databricks workspace `dbw-homecredit` with Unity Catalog) and the raw folder `v1` uploaded
+  to ADLS Gen2.
+* **Dependencies:** Python 3.10+, Databricks CLI ≥ 0.230 (`brew install databricks/tap/databricks`),
+  `pip install -r requirements-dev.txt`. The job runs on Databricks Runtime 15.4 LTS
+  (single node `Standard_D4ds_v5`).
+* **Permissions:** workspace access with cluster creation, `USE CATALOG` on `dbw_homecredit`,
+  `CREATE TABLE` on `dbw_homecredit.default`, and the key of the storage account
+  `sahomecredit` (creating an Access Connector is blocked by the course policy, so the job
+  reads ADLS with the account key).
+* **Configuration:** workspace, storage account, catalog and raw version are set in
+  `databricks.yml`. One-time setup of the login and the storage key (kept in a Databricks
+  secret, never in Git):
 
-**Storage access:** creating an Access Connector / storage credential is blocked by the
-course subscription policy, so the job cluster reads ADLS with the storage account key,
-kept in a Databricks secret scope (never in Git). One-time setup:
+  ```bash
+  databricks auth login --host https://adb-7405604671478132.12.azuredatabricks.net
+  databricks secrets create-scope hc
+  read -s "KEY?Paste key1 of sahomecredit (Access keys): "
+  databricks secrets put-secret hc sahomecredit-key --string-value "$KEY" && unset KEY
+  ```
+* **Execution commands:**
 
-```bash
-databricks auth login --host https://adb-7405604671478132.12.azuredatabricks.net
-databricks secrets create-scope hc
-read -s "KEY?Paste the key1 value of sahomecredit (Access keys): "
-databricks secrets put-secret hc sahomecredit-key --string-value "$KEY" && unset KEY
-```
+  ```bash
+  databricks bundle deploy -t dev                    # creates the job
+  databricks bundle run -t dev home_credit_etl       # runs it on raw version v1
+  # controlled failure test on a separate bad input:
+  databricks bundle run -t dev home_credit_etl --params raw_root=/Volumes/dbw_homecredit/default/raw/home_credit,source_version=test_bad_v1,enforce_expected_rows=false
+  pytest -q                                          # 12 unit tests (local)
+  ```
 
-**Deploy and run** (workspace host, storage account and catalog are already set in
-`databricks.yml`):
-
-```bash
-pip install -r requirements-dev.txt
-databricks bundle validate -t dev
-databricks bundle deploy -t dev            # builds the wheel, creates the job
-databricks bundle run -t dev home_credit_etl                     # raw version v1 (default)
-# other inputs, e.g. the controlled failure test:
-databricks bundle run -t dev home_credit_etl --params source_version=test_bad_v1,enforce_expected_rows=false
-```
-
-Job `home_credit_etl` (single-node `Standard_D4ds_v5`, DBR 15.4 LTS):
-
-`bronze_load → silver_transform → quality_gate → publish_silver → build_features_v1`
-
-Each task logs to `ops_run_log`. `quality_gate` raises if any **BLOCK** check fails, so
-`publish_silver` and `build_features_v1` don't run and the published silver tables stay
-unchanged.
-
-**Local (no Azure):** the same code runs on local Spark + Parquet:
-
-```bash
-pip install -r requirements-dev.txt
-python scripts/make_synthetic_sample.py --out data/raw/synthetic_v1        # or use the real CSVs
-PYTHONPATH=src python -m hc_pipeline.cli all --local --raw-root data/raw \
-    --source-version synthetic_v1 --enforce-expected-rows false
-pytest -q                                                                   # 12 unit tests
-python scripts/build_data_dictionary.py --data-dir <folder with Kaggle CSVs>
-python scripts/export_feature_spec.py
-```
+  The job runs 5 steps in this order:
+  `bronze_load → silver_transform → quality_gate → publish_silver → build_features_v1`.
 
 ## Results and features
 
-### ETL and quality
+* **Run IDs** (job `68730613515617`):
 
-* **Run IDs** (job `68730613515617`, workspace `adb-7405604671478132`): successful full run
-  `933468886966780` (2026-11-14, 20:34 → 21:15, raw version `v1`), rerun `854216896755038`
-  (21:17 → 21:53),
-  controlled failure `1032959196744401` (2026-11-15, test input `test_bad_v1`). Earlier runs: `1073714360410313` = rehearsal on synthetic
-  data (passed); `1109123459055160` and `601695391609100` = failed in `bronze_load` because the
-  storage key secret was saved incorrectly (fixed, see run instructions).
-* **Order of operations (silver):** trim + empty→NULL → cast with `try_cast` (failures =
-  type violations) → business rules → exact duplicates → key conflicts → cleaning of
-  accepted rows (365243 / XNA → NULL, `DAYS_EMPLOYED_ANOM` flag). Details:
-  [data_dictionary.md §3-5](docs/data_dictionary.md).
-* **Row accounting** (run `933468886966780`, full data; rows in = accepted + rejected for every table):
+  | Run | Run ID | Result |
+  |---|---|---|
+  | Full run on real data (`v1`) | `933468886966780` | succeeded, 40 min ([screenshot](docs/evidence/01_job_run_success.png)) |
+  | Safe rerun (same input) | `854216896755038` | succeeded, identical results |
+  | Controlled failure (`test_bad_v1`) | `1032959196744401` | stopped at the quality gate, as intended ([screenshot](docs/evidence/04_controlled_failure.png)) |
 
-  | Table | Rows in (bronze) | Accepted (silver) | Rejected (quarantine) | Values cleaned (→ NULL) |
-  |---|---:|---:|---:|---|
-  | application_train | 307,511 | 307,511 | 0 | DAYS_EMPLOYED 55,374 · ORGANIZATION_TYPE 55,374 · CODE_GENDER 4 · NAME_FAMILY_STATUS 2 |
-  | application_test | 48,744 | 48,744 | 0 | DAYS_EMPLOYED 9,274 · ORGANIZATION_TYPE 9,274 |
-  | bureau | 1,716,428 | 1,716,428 | 0 | – |
-  | bureau_balance | 27,299,925 | 27,299,925 | 0 | – |
-  | previous_application | 1,670,214 | 1,670,214 | 0 | NAME_CASH_LOAN_PURPOSE 1,600,579 · DAYS_FIRST_DRAWING 934,444 · DAYS_TERMINATION 225,913 · DAYS_LAST_DUE 211,221 · DAYS_LAST_DUE_1ST_VERSION 93,864 · DAYS_FIRST_DUE 40,645 · CODE_REJECT_REASON 5,244 |
-  | installments_payments | 13,605,401 | 13,605,401 | 0 | – |
-  | pos_cash_balance | 10,001,358 | 10,001,358 | 0 | – |
-  | credit_card_balance | 3,840,312 | 3,840,312 | 0 | – |
-  | **Total** | **58,489,893** | **58,489,893** | **0** | |
+* **Output paths and versions:** `dbw_homecredit.default.silver_<table>`,
+  `gold_features_v1` and `gold_split_v1`. Each table stores its run ID, input version and
+  git commit as table properties; `DESCRIBE HISTORY <table>` shows its Delta versions.
+  Tables are registered in Unity Catalog with descriptions, column comments and a primary
+  key ([screenshot](docs/evidence/02_catalog_registration.png)), and Unity Catalog records
+  the lineage ([screenshot](docs/evidence/03_lineage.png)).
+* **Row accounting** (run `933468886966780`, rows in = accepted + rejected for every table):
 
-  Quality gate: 58 checks, **0 blocking failures**; all row counts match the documented
-  Kaggle counts exactly; train default rate 8.07 %; 0 train/test ID overlap.
-  Warnings: `EXT_SOURCE_1` is 56.4 % NULL (expected, kept as NULL); 11.43 % of
-  `bureau_balance` rows reference a `SK_ID_BUREAU` that is not in `bureau` (orphans, kept in
-  silver; they cannot reach an applicant, so the feature joins drop them).
-  Observation: the 55,374 `ORGANIZATION_TYPE = 'XNA'` rows are exactly the 55,374
-  `DAYS_EMPLOYED = 365243` rows, i.e. applicants without an employer (mostly pensioners),
-  which supports keeping `DAYS_EMPLOYED_ANOM` as a feature.
-  Zero rejected rows is the expected result on this source: the profiler found one type
-  failure (`DAYS_REGISTRATION`, applicant 408583), which was resolved in the schema
-  contract, and no duplicates. The quarantine path is shown by the synthetic rehearsal
-  (3 duplicate `bureau` rows quarantined) and by the controlled failure test.
-* **When publication stops (BLOCK checks):** missing required column; rows in ≠ accepted
-  + rejected; empty table; row count > 1 % off the documented count (full data only);
-  reject rate > 1 %; duplicate primary key in the accepted rows; train default rate outside
-  5-12 %; train/test ID overlap. **WARN only:** columns > 50 % NULL, orphan child rows.
-  Thresholds: `src/hc_pipeline/quality.py`, `spec.py`.
-* **Safe rerun:** bronze is skipped when the version + SHA-256 match (`skipped_unchanged`);
-  silver is overwritten (same input → same output); the quarantine is replaced per
-  (table, source version), so a rerun doesn't duplicate it. **Evidence (rerun
-  `854216896755038` on the same input `v1`):** `bronze_load` logged `skipped_unchanged` for all
-  8 tables; silver, quarantine, gate and features produced **identical** results (58,489,893
-  rows in = accepted, 0 rejected, 0 blocking failures, 356,255 feature rows, same split).
-  Known gap: both runs logged `sha256=None`: the ingestion manifest
-  ([docs/manifest_v1.json](docs/manifest_v1.json)) names the field `filename`, which
-  `read_manifest` did not recognise, so the hashes were not copied into the bronze table
-  properties and the skip relied on the version folder. Fixed in `cli.py` afterwards; the
-  next bronze load records the SHA-256 per file. The input is identified by the version folder
-  `v1` and the manifest (file sizes + SHA-256).
-* **Controlled failure** (run `1032959196744401`, 2026-11-15): separate test input
-  `test_bad_v1`, generated with `scripts/make_synthetic_sample.py --inject-errors` (500
-  synthetic applicants with planted errors) and uploaded to the Unity Catalog Volume
-  `/Volumes/dbw_homecredit/default/raw/home_credit/test_bad_v1`; run with
-  `raw_root=/Volumes/dbw_homecredit/default/raw/home_credit,source_version=test_bad_v1,enforce_expected_rows=false`.
-  Result: `bronze_load` and `silver_transform` succeeded (bad rows quarantined), then
-  `quality_gate` **failed** with
-  `QualityGateError: 1 blocking quality check(s) failed; silver tables were NOT published`
-  on `application_train`, `validity.reject_rate` = **15.86 %** (69 of 435 rows; limit 1 %), reasons:
-  `type:AMT_INCOME_TOTAL` 44, `non_positive_income` 44, `invalid_target` 21,
-  `null_key:SK_ID_CURR` 5, `duplicate_row` 5 (a row can have several reasons).
-  `publish_silver` and `build_features_v1` were **skipped**, so the published `silver_*` and
-  `gold_*` tables still hold the full-data run `854216896755038`. The rejected rows with
-  their reasons are in `ops_quarantine` (`source_version = 'test_bad_v1'`). Side effect: the
-  `bronze_*` tables now hold the last loaded input (the test sample); the next `v1` run
-  reloads them. Evidence: [failed run](docs/evidence/04_controlled_failure.png)
-  (`bronze_load` and `silver_transform` succeeded, `quality_gate` failed after 25 s,
-  `publish_silver` and `build_features_v1` skipped as "Upstream failed").
-  In addition, the ingestion notebook ([notebooks/01_homecredit_ingestion.ipynb](notebooks/01_homecredit_ingestion.ipynb))
-  shows a file-integrity check: a deliberately corrupted file raises a SHA-256
-  `ValueError` and the original `v1` files stay intact.
-* **Catalog:** tables with comments (from Kaggle's description file), PK constraints and
-  `hc.*` properties; see `sql/02_verify_catalog_and_runs.sql`.
-  Evidence: [successful job run](docs/evidence/01_job_run_success.png) (5 tasks green, 40 min
-  on single-node Standard_D4ds_v5: bronze 11m40s, silver 13m12s, gate 30s, publish 13m33s,
-  features 1m19s) and [Unity Catalog registration](docs/evidence/02_catalog_registration.png)
-  (31 tables in `dbw_homecredit.default`, table description, `SK_ID_CURR` primary key,
-  column comments from Kaggle's description file). [Lineage](docs/evidence/03_lineage.png)
-  recorded automatically by Unity Catalog: `silver_staging_application_train` → (job) →
-  `silver_application_train` → (job) → `gold_features_v1`.
+  | Table | Rows in | Accepted | Rejected |
+  |---|---:|---:|---:|
+  | application_train | 307,511 | 307,511 | 0 |
+  | application_test | 48,744 | 48,744 | 0 |
+  | bureau | 1,716,428 | 1,716,428 | 0 |
+  | bureau_balance | 27,299,925 | 27,299,925 | 0 |
+  | previous_application | 1,670,214 | 1,670,214 | 0 |
+  | installments_payments | 13,605,401 | 13,605,401 | 0 |
+  | pos_cash_balance | 10,001,358 | 10,001,358 | 0 |
+  | credit_card_balance | 3,840,312 | 3,840,312 | 0 |
+  | **Total** | **58,489,893** | **58,489,893** | **0** |
 
-### EDA
-
-Notebook: [notebooks/01_eda.ipynb](notebooks/01_eda.ipynb) (full population; one
-documented 5 % systematic sample for a scatter plot). Figures: `docs/eda/`.
-Findings (full data, 58.5 M rows):
-
-* **Target imbalance:** 8.07 % defaults → ROC-AUC and recall at a fixed approval rate, stratified split; never accuracy.
-* **Missing values:** 71 of 121 application columns have NULLs, 41 are > 50 % empty (EXT_SOURCE_1: 56 %) → kept as NULL in silver, imputed in training only.
-* **DAYS_EMPLOYED placeholder:** 55,374 rows (default rate 5.40 % vs 8.66 %) → NULL + `DAYS_EMPLOYED_ANOM` flag, because the placeholder itself is informative.
-* **Outliers:** max income is 248× its 99th percentile (159 extreme rows) → ratio features / log scale; tree models are robust.
-* **Strongest single signals:** EXT_SOURCE_3 (−0.179), EXT_SOURCE_2 (−0.160), EXT_SOURCE_1 (−0.155), DAYS_BIRTH (+0.078).
-* **Collinear pairs (|r| > 0.8):** AMT_CREDIT & AMT_GOODS_PRICE, CNT_CHILDREN & CNT_FAM_MEMBERS → matters for the logistic baseline.
-* **History coverage:** 86 % have bureau records, 95 % previous applications; 1 % have neither.
-* **Hypothesis signal:** default rate is 6.8 % for applicants never late on past installments vs 11.9 % for those late on > 20 % of installments.
-
-Interpretation: see the last cell of the notebook.
-
-### Features
-
-`gold_features_v1`: 50 features in two groups (24 application, 26 history), one row
-per applicant: **356,255 rows** (307,511 train + 48,744 test applications).
-`gold_split_v1` (stratified, seed 3202): train 246,009 (19,860 defaults) / test 61,502
-(4,965 defaults), default rate 8.07 % in both. Definitions, sources, availability and leakage handling:
-[docs/feature_spec.md](docs/feature_spec.md). Output versions are recorded as Delta table
-history plus table properties (`hc.run_id`, `hc.source_version`, `hc.git_commit`,
-`hc.silver_versions`); query them with `DESCRIBE HISTORY dbw_homecredit.default.gold_features_v1`
-and `SHOW TBLPROPERTIES ...` (see `sql/02_verify_catalog_and_runs.sql`). Silver Delta versions
-after the rerun: application_train 274, bureau 59, bureau_balance 35, previous_application 99,
-installments_payments 38, pos_cash_balance 39, credit_card_balance 69, application_test 271
-(versions are high because each column comment is its own metadata commit).
+  The real data had no type errors or duplicates. Cleaning replaced placeholder values with
+  NULL (for example `DAYS_EMPLOYED = 365243` in 55,374 rows, kept as a flag). Rejected rows
+  go to `ops_quarantine` with the reason.
+* **Quality checks:** silver handles missing values (empty text → NULL, missing ID →
+  rejected), types (values that cannot be converted → rejected) and duplicates (exact
+  copies and ID conflicts → rejected). Publication **stops** if any of these fails: a
+  required column is missing, rows in ≠ accepted + rejected, a table is empty, more than
+  1 % of rows are rejected, an ID is duplicated, the default rate is outside 5–12 %, or
+  train and test share IDs. Other checks (many NULLs, orphan rows) only warn. Full run:
+  58 checks, 0 blocking failures. Details: [docs/data_dictionary.md](docs/data_dictionary.md).
+* **Rerun check:** the rerun skipped `bronze_load` for all 8 tables (`skipped_unchanged`)
+  and produced the same counts, so nothing was duplicated. Note: the file hashes were not
+  saved in the bronze tables in these runs (manifest field-name mismatch, fixed afterwards).
+* **Controlled failure:** a separate test input `test_bad_v1` (500 made-up applicants with
+  planted errors, from `scripts/make_synthetic_sample.py --inject-errors`) was run through
+  the job. 15.86 % of `application_train` rows were rejected (limit 1 %), so `quality_gate`
+  failed, `publish_silver` and `build_features_v1` were skipped, and the published tables
+  stayed unchanged. The bronze tables now hold this test sample until the next `v1` run.
+  The ingestion notebook ([notebooks/01_homecredit_ingestion.ipynb](notebooks/01_homecredit_ingestion.ipynb))
+  also tests that a corrupted file is detected by its SHA-256 hash.
+* **EDA findings** ([notebooks/01_eda.ipynb](notebooks/01_eda.ipynb), all rows; one labelled
+  5 % sample is used only for a scatter plot; charts in `docs/eda/`):
+  * 8.07 % of applicants default, so we use ROC-AUC, not accuracy, and a stratified split.
+  * 41 of 121 application columns are more than half empty (`EXT_SOURCE_1`: 56 %). They
+    stay NULL and are filled in during training only, using the training split.
+  * Income has extreme outliers (max is 248× the 99th percentile), so we use ratios such as
+    credit ÷ income.
+  * The strongest single signals are the external scores `EXT_SOURCE_1–3`. Their timing is
+    unknown, so Phase 2 will report results with and without them.
+  * Applicants who were late on more than 20 % of past installments default at 11.9 %,
+    versus 6.8 % for those never late: the history signal the hypothesis needs.
+* **Feature definitions:** `gold_features_v1` has 50 features in two groups, 24 from the
+  application form and 26 from borrowing history, one row per applicant (356,255 rows).
+  `gold_split_v1` is a fixed stratified 80/20 split (seed 3202; 8.07 % defaults in both
+  parts). Each feature's definition, type, source and availability at prediction time, plus
+  the leakage risks, are in [docs/feature_spec.md](docs/feature_spec.md).
 
 ## Resource use and contributions
 
@@ -285,7 +217,7 @@ installments_payments 38, pos_cash_balance 39, credit_card_balance 69, applicati
   only after the team has backed up evidence and confirmed the instructor no longer
   needs the live resources. Deleting the resource group permanently removes its
   resources and stored data.
-* **Contributions:**
+* **Each member's work:**
   * Lercia: Created Azure resource group, ADLS Gen2 storage account/container,
     Databricks workspace and Unity Catalog volume; prepared versioned raw data and
     SHA-256 manifest; implemented and ran ingestion/idempotency checks and a
@@ -294,11 +226,12 @@ installments_payments 38, pos_cash_balance 39, credit_card_balance 69, applicati
     connected its Git configuration to the shared repository. Pending: final
     ADF pipeline export, controlled failure Job run ID/screenshot, destination hash
     verification, and recorded measurement results.
-  * Noor: ETL bronze→silver with quarantine; quality gate, row accounting and Databricks Job
-    (bundle); data dictionary, lineage and Unity Catalog registration; EDA notebook;
-    feature set v1, split and feature spec; unit tests.
-* **Reused code:**
-  * Noor's part (ETL, quality gate, job, catalog, EDA, features): none; written for this project.
+  * Noor: ETL bronze → silver with quarantine; quality gate, row accounting and the
+    Databricks job; data dictionary, lineage and Unity Catalog registration; EDA notebook;
+    feature set v1, split and feature spec; unit tests; full run, safe rerun and
+    controlled failure run on Databricks.
+* **Reused code and adaptations:**
+  * Noor's part: none; written for this project.
   * Lercia's part: Used and adapted code from lab 3,  and the for the data engineering part (Labs 04-06) helped with the Databrick notebook.
 
 ## AI use
