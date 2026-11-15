@@ -1,0 +1,19 @@
+{
+	"name": "DS_HomeCredit_Destination",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "LS_ADLS_HomeCredit",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "Binary",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"fileName": "application_train.csv",
+				"folderPath": "home_credit/adf_test",
+				"fileSystem": "raw"
+			}
+		}
+	}
+}
