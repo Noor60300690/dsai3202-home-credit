@@ -168,7 +168,9 @@ python scripts/export_feature_spec.py
   `gold_*` tables still hold the full-data run `854216896755038`. The rejected rows with
   their reasons are in `ops_quarantine` (`source_version = 'test_bad_v1'`). Side effect: the
   `bronze_*` tables now hold the last loaded input (the test sample); the next `v1` run
-  reloads them. Screenshot: TODO(Noor).
+  reloads them. Evidence: [failed run](docs/evidence/04_controlled_failure.png)
+  (`bronze_load` and `silver_transform` succeeded, `quality_gate` failed after 25 s,
+  `publish_silver` and `build_features_v1` skipped as "Upstream failed").
 * **Catalog:** tables with comments (from Kaggle's description file), PK constraints and
   `hc.*` properties; see `sql/02_verify_catalog_and_runs.sql`.
   Evidence: [successful job run](docs/evidence/01_job_run_success.png) (5 tasks green, 40 min
