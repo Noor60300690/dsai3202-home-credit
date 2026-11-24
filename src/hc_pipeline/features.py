@@ -244,3 +244,24 @@ def stratified_split(features: DataFrame, seed: int = SPLIT_SEED,
     return (lab.withColumn("_r", F.percent_rank().over(w))
             .withColumn("SPLIT", F.when(F.col("_r") < test_fraction, "test").otherwise("train"))
             .drop("_r"))
+
+
+# Phase 2: validation carved out of the Phase-1 train split (test is never touched).
+VALIDATION_SEED = 3203
+VALIDATION_FRACTION = 0.20
+
+
+def validation_split(split: DataFrame, seed: int = VALIDATION_SEED,
+                     fraction: float = VALIDATION_FRACTION) -> DataFrame:
+    """Train / validation / test from the Phase-1 80/20 split.
+
+    Same rule as `stratified_split` (seeded hash of SK_ID_CURR, ordered inside each TARGET
+    class) with a different seed, applied only to SPLIT = 'train'. Rows with
+    SPLIT = 'test' are passed through unchanged, so the Phase-1 test set stays identical.
+    """
+    tr = split.filter(F.col("SPLIT") == "train")
+    w = Window.partitionBy("TARGET").orderBy(F.xxhash64(F.col("SK_ID_CURR"), F.lit(seed)), "SK_ID_CURR")
+    tr = (tr.withColumn("_r", F.percent_rank().over(w))
+          .withColumn("SPLIT", F.when(F.col("_r") < fraction, "validation").otherwise("train"))
+          .drop("_r"))
+    return tr.unionByName(split.filter(F.col("SPLIT") == "test"))
