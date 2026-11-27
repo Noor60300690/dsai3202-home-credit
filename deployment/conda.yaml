@@ -1,0 +1,18 @@
+name: homecredit-inference
+channels:
+- conda-forge
+dependencies:
+- python=3.12.3
+- pip
+- libgomp
+- pip:
+  - mlflow==3.12.0
+  - cloudpickle==3.1.1
+  - defusedxml==0.7.1
+  - lightgbm==4.5.0
+  - matplotlib==3.10.6
+  - pandas==2.3.3
+  - psutil==7.0.0
+  - pyarrow==21.0.0
+  - scikit-learn==1.7.2
+  - azureml-inference-server-http==1.6.1
