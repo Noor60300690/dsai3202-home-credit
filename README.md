@@ -231,8 +231,6 @@ the Job-level test, not the notebook hash-mismatch test.
 
 ## Model and evaluation
 
-## Model and evaluation
-
 * **Code:** `notebooks/02_train_evaluate.py` and `src/hc_pipeline/modeling.py`, run on
   Databricks Runtime 19. Versions, seeds and the data snapshot hash are in
   [run_record.json](docs/evidence/phase2/run_record.json).
@@ -272,6 +270,85 @@ the Job-level test, not the notebook hash-mismatch test.
   [model_input_schema.json](docs/evidence/phase2/model_input_schema.json),
   [consistency_sample_100.json](docs/evidence/phase2/consistency_sample_100.json)
   (100 fixed test rows with the saved model's predictions).
+
+## Traceability and deployment (Phase 2 — Lercia)
+
+| Configuration | Value |
+|---|---|
+| Resource group | `rg-homecredit` |
+| Azure ML workspace | `mlw-homecredit` (Qatar Central) |
+| Registered model | `lgbm-app-hist:1` (MLflow) |
+| Endpoint | `homecredit-risk-endpoint` |
+| Deployment | `blue`, 100% traffic |
+| Compute | `Standard_DS3_v2`, one instance |
+| Authentication | Key-based; credentials are not committed |
+| Environment | `homecredit-inference:1` |
+
+The registered model retains the fitted preprocessing and training run metadata. See the [model tags](docs/evidence/phase2/model_tags.json), [input schema](docs/evidence/phase2/model_input_schema.json) and [registration/deployment notebook](notebooks/Phase2_Model_Registration.ipynb).
+
+![Registered model in Azure ML](docs/evidence/phase2/phase2_azure_ml_registered_model.png)
+
+### Deployment and troubleshooting
+
+The initial automatic MLflow deployment failed its health probes because the generated scoring script could not import the `azureml` module. The endpoint itself was created successfully. We replaced automatic scoring with a custom [score.py](deployment/score.py) and [conda.yaml](deployment/conda.yaml), explicitly including the inference HTTP server and model dependencies. The custom script locates the actual model artifact rather than its metadata copy, validates inputs and extracts the positive-class probability. After local tests, the custom deployment succeeded and received 100% of endpoint traffic.
+
+![Initial deployment failure](docs/evidence/phase2/phase2_initial_deployment_failed.png)
+
+![Successful custom deployment](docs/evidence/phase2/phase2_deployment_success.png)
+
+![Blue deployment at 100 percent traffic](docs/evidence/phase2/phase2_traffic_allocation.png)
+
+### Input contract and repeatable setup
+
+The service accepts computed applicant-level features, not raw Kaggle tables. Generate features using the Phase-1 pipeline and select the fields and types in the [input schema](docs/evidence/phase2/model_input_schema.json). The MLflow signature has 50 feature columns (39 required and 11 optional); retain the signature fields even where the estimator does not use them. The response provides the probability of repayment difficulty, not an approval decision.
+
+For a reproducible sample request, use the first record in `inputs` from [consistency_sample_100.json](docs/evidence/phase2/consistency_sample_100.json) and construct the request using the invocation cell in the deployment notebook (Cell 52). The corresponding expected probability for applicant 100008 is `0.034801695219948824`. The exact live request and response are demonstrated in the notebook and evidence below.
+
+![Successful live endpoint prediction](docs/evidence/phase2/phase2_endpoint_test.png)
+
+To redeploy, use an authorized Azure account, connect to the workspace, retain or register model version 1, register the custom environment from `conda.yaml`, create the key-authenticated endpoint, and deploy `blue` with the custom scoring script on one `Standard_DS3_v2` instance. Wait for successful provisioning, assign 100% traffic and repeat the endpoint and consistency tests using the notebook. Obtain endpoint credentials through Azure at runtime; do not store them in Git.
+
+## Verification and resource use (Phase 2)
+
+### Functional and consistency checks
+
+Valid live requests succeeded. Empty inputs, missing fields, invalid types and missing required features were tested locally against the custom scoring script; invalid requests were not independently verified on the live endpoint. The same 100 fixed test records were scored offline and online, with tolerance `1e-6` and matching records in the fixed sample order. Both tests matched 100/100 expected predictions, with maximum and mean absolute difference of 0.0.
+
+![Online consistency: 100 of 100 exact matches](docs/evidence/phase2/phase2_online_consistency.png)
+
+Additional evidence: [local consistency](docs/evidence/phase2/phase2_local_consistency.png), [custom scoring test](docs/evidence/phase2/phase2_custom_scoring_success.png), [environment registration](docs/evidence/phase2/phase2_environment_registered.png).
+
+### Latency and cost
+
+After warm-up, 100 requests were issued from Databricks. All succeeded; timings include client and network overhead.
+
+| Metric | Result |
+|---|---:|
+| Successful requests | 100/100 |
+| Mean | 721.65 ms |
+| P50 | 726.97 ms |
+| P95 | 877.04 ms |
+| P99 | 1165.54 ms |
+
+A proposed demonstration target is P95 below 1 second; the observed result meets it. This target is stated retrospectively, not claimed as a pre-test target. One instance was sufficient for the measured sequential workload; no concurrent-load or autoscaling claim is made.
+
+![Client-observed latency results](docs/evidence/phase2/phase2_latency_results.png)
+
+Azure Retail Prices API returned an estimated Linux compute rate of USD 0.275/hour for the selected instance in Qatar Central. At continuous operation, this is USD 6.60/day, USD 46.20/week and USD 198 per 30-day month. These are compute-only estimates, excluding storage, networking and other services. One instance avoids additional replica cost for the demonstration workload.
+
+![Estimated endpoint compute costs](docs/evidence/phase2/phase2_cost_estimation.png)
+
+Additional evidence: [pricing lookup](docs/evidence/phase2/phase2_azure_pricing.png), [benchmark success](docs/evidence/phase2/phase2_benchmark_success.png).
+
+### Cleanup plan
+
+Keep the endpoint available through the presentation and D2L assessment window. After grading and team confirmation, delete the managed online endpoint (including its deployment) using Azure ML Studio or `ml_client.online_endpoints.begin_delete(name="homecredit-risk-endpoint").result()`. Verify that it no longer appears in the endpoint list and save deletion evidence. Retain the model, data, configuration and notebook for reproducibility. Cleanup is planned, not yet executed.
+
+### Phase 2 contributions and reused code
+
+* Lercia: Azure ML workspace setup, model registration, deployment troubleshooting, custom scoring and environment configuration, local and online consistency checks, latency benchmarking, cost estimation, cleanup planning and deployment evidence.
+* Noor: model training, validation and error analysis. Both members share documentation, consistency review and presentation preparation.
+* Lercia used the Lab 10 managed endpoint workflow as a reference, adapting it to the registered Home Credit MLflow model, custom inference environment, input validation and fixed-sample consistency checks.
 
 ## Resource use and contributions
 
