@@ -230,6 +230,61 @@ the Job-level test, not the notebook hash-mismatch test.
   parts). Each feature's definition, type, source and availability at prediction time, plus
   the leakage risks, are in [docs/feature_spec.md](docs/feature_spec.md).
 
+## Model and evaluation
+
+* **Notebook:** `notebooks/02_train_evaluate.py` (code in `src/hc_pipeline/modeling.py`).
+* **Data:** feature set v1 (Delta version 5), 50 features per applicant. Fixed snapshot:
+  `features_v1_delta5_tvt1.parquet` (sha256 `99a93262…ec9`), saved in MLflow and the volume.
+* **Split:** the Phase-1 test set (61,502 rows) is never used for choices. From the Phase-1
+  train set, 20% of each class is moved to a validation set (same hash rule, seed 3203).
+  Preprocessing (imputer, scaler) is fitted on the train rows only.
+* **Models:**
+  * Baseline: logistic regression on the application features.
+  * Control: LightGBM on the application features.
+  * Candidate: LightGBM on the application + history features.
+  * LightGBM was chosen because it handles missing values and mixed feature types
+    without heavy preprocessing and works well on imbalanced tabular data.
+  * Each LightGBM model tried the same 12 settings; the best was picked on validation AUC.
+    Chosen settings: `num_leaves=31, min_child_samples=50, reg_lambda=5.0`.
+  * `CODE_GENDER` is not used by any model (fairness review needed first).
+* **Test results** (each model scored once on the test set):
+
+  | Model | Features | ROC-AUC | PR-AUC |
+  |---|---|---|---|
+  | Logistic regression (baseline) | application | 0.745 | 0.229 |
+  | LightGBM (control) | application | 0.765 | 0.252 |
+  | **LightGBM (chosen)** | **application + history** | **0.781** | **0.277** |
+
+  Validation AUC of the chosen model was 0.773, close to the test AUC, so there is no
+  sign of overfitting. The default rate is about 8%, so PR-AUC 0.277 is about 3.5× a
+  random model.
+* **Hypothesis outcome: refuted.** We expected history features to raise AUC by at least
+  0.03. The real gain was **+0.0155** (95% bootstrap CI +0.012 to +0.019, 1,000 samples).
+  The gain is real but half the target. Without the `EXT_SOURCE` scores, history adds
+  **+0.039**, so the external scores already carry much of the history information.
+* **Weakest group:** applicants aged 60+ (n = 7,104): AUC 0.732 vs 0.781 overall. Their
+  default rate is low (4.9%), so there are few defaults to learn from. The average
+  prediction (0.049) still matches the real rate, so the model is not biased for this
+  group, only weaker at ranking.
+* **Example errors:**
+  * Missed defaulters had high external scores (~0.75–0.80), no late payments and no
+    refused loans: nothing in the data warned the model.
+  * False alarms had low external scores (0.05–0.22) and 11–37% late installments, but
+    repaid anyway.
+* **Most important features:** `EXT_SOURCE_MEAN` (about 5× any other feature),
+  `EXT_SOURCE_3`, `CREDIT_TERM`, `EMPLOYED_YEARS`, `PREV_CREDIT_APPLICATION_RATIO_MEAN`.
+  10 of the top 20 are history features
+  ([chart](docs/evidence/phase2/feature_importance.png),
+  [ROC and PR curves](docs/evidence/phase2/test_curves.png)).
+* **Limitations:** the model depends heavily on the external scores; older applicants are
+  ranked less well; some defaults cannot be predicted from the available data; the test
+  set comes from the same period as training (no time-based check).
+* **Run record:** MLflow parent run `3b066d7a9e824bb7a9daedada09c93d3`, chosen model run
+  `a489fc09f1da4dca8fa2a1187deaad56`, code commit `bf4db2e`; seeds and library versions in
+  [run_record.json](docs/evidence/phase2/run_record.json). Changes for Databricks
+  Runtime 19: only `lightgbm==4.5.0` is installed (the other pinned packages crashed the
+  kernel), and `df.attrs` is cleared before saving the snapshot.
+
 ## Resource use and contributions
 
 * **Cost and performance choice (Lercia):** We compared CSV and Delta formats using the same
