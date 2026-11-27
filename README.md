@@ -47,7 +47,6 @@ Team: Noor (60300690) · Lercia (60306713)
 ```mermaid
 flowchart LR
   K["Kaggle Home Credit<br/>8 CSVs, 2.5 GB"] --> A[("ADLS Gen2 sahomecredit<br/>raw/home_credit/v1 + manifest")]
-  ADF["Azure Data Factory<br/>ingestion, Git-linked"] -.-> A
   K --> N["Databricks ingestion notebook<br/>versioned copy + SHA-256 manifest"]
   N --> V[("Unity Catalog Volume<br/>homecredit_raw/v1")]
   GH["GitHub repo<br/>code + databricks.yml"] -->|bundle deploy| B
@@ -316,13 +315,19 @@ the Job-level test, not the notebook hash-mismatch test.
     SHA-256 validation, idempotent rerun, controlled failure and performance comparison
     were adapted to this project's requirements.
 
+
 ## AI use
 
 Lercia's disclosure:
 
 | Tool | Request | Response | Our changes / checks |
 |---|---|---|---|
-| ChatGPT (OpenAI), used by Lercia | Assistance for Azure resource setup, Databricks ingestion| Suggested Azure setup methods, notebook code debugging and troubleshooting steps, | Lercia executed the ingestion notebook and tests in the course workspace, resolved file-path and volume errors, uploaded the required CSVs and manifest to ADLS, and configured ADF Git integration. Lercia ran the notebook-level controlled failure test (hash mismatch) and confirmed it stopped as expected. |
+|**Phase 1**||||
+| ChatGPT (OpenAI) | Assistance for Azure resource setup, Databricks ingestion| Suggested Azure setup methods, notebook code debugging and troubleshooting steps, | Lercia executed the ingestion notebook and tests in the course workspace, resolved file-path and volume errors, uploaded the required CSVs and manifest to ADLS, and configured ADF Git integration. Lercia ran the notebook-level controlled failure test (hash mismatch) and confirmed it stopped as expected. |
+|**Phase 2**||||
+|ChatGPT (Open AI)|Azure ML deployment failure trouble|Analysed the deployment logs and identified a missing azureml Python module that caused the original deployment to fail.|Replaced automatic MLflow deployment with a custom scoring script and inference environment.|
+|ChatGPT (OpenAI) |Resolve missing model dependencies.|Identified missing LightGBM and recommended the required version.|Suggested the installation of LightGBM 4.5.0.|
+|ChatGPT (OpenAI) |Validate the custom scoring script.|Suggested syntax, initialization and input validation tests.|Tested the script successfully and verified that invalid inputs were rejected.|
 
 Noor's disclosure:
 
