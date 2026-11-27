@@ -1,7 +1,7 @@
 # Predicting Loan Default with Borrowing-History Features
 
 DSAI3202 Fall 2026, Project Phase 1: data pipeline, ETL and features.
-Team: Lercia · Noor
+Team: Noor (60300690) · Lercia (60306713)
 
 ## Project and hypothesis
 
