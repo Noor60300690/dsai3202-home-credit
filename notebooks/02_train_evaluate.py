@@ -23,7 +23,7 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install scikit-learn==1.5.2 lightgbm==4.5.0 mlflow==2.17.2 matplotlib
+# MAGIC %pip install lightgbm==4.5.0
 
 # COMMAND ----------
 
@@ -68,6 +68,7 @@ dbutils.widgets.dropdown("local", "false", ["true", "false"])        # noqa: F82
 W = {k: dbutils.widgets.get(k) for k in (                              # noqa: F821
     "catalog", "single_schema", "git_commit", "experiment", "evidence_dir", "export_dir",
     "expect_full_data", "local")}
+W["git_commit"] = W["git_commit"] or "f1cf4d21ca7e4712df5e44017a2ecc37bbb28840"
 
 if not W["git_commit"].strip():
     raise ValueError("Set the git_commit widget to the commit you are running "
@@ -433,6 +434,7 @@ print("wrote", sorted(os.listdir(EVIDENCE)))
 snap_name = (f"features_{features.FEATURE_VERSION}_delta{versions['features']}"
              f"_tvt{versions['split_tvt']}.parquet")
 snap_local = f"/tmp/{snap_name}"
+df.attrs = {}
 df.to_parquet(snap_local, index=False)
 snap_sha = hashlib.sha256(open(snap_local, "rb").read()).hexdigest()
 mlflow.log_artifact(snap_local, artifact_path="data")
@@ -453,3 +455,7 @@ print("snapshot", snap_name, "sha256", snap_sha)
 mlflow.end_run()
 print(json.dumps({"parent_run": record.mlflow_runs["parent"], "chosen_model": CHOSEN,
                   "chosen_run": chosen_run, "verdict": main["verdict"]}, indent=2))
+
+# COMMAND ----------
+
+

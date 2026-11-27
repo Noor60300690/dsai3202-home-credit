@@ -1,0 +1,15 @@
+{
+  "git_commit": "f1cf4d21ca7e4712df5e44017a2ecc37bbb28840",
+  "training_run_id": "a489fc09f1da4dca8fa2a1187deaad56",
+  "mlflow_experiment": "/Users/60300690@udst.edu.qa/hc_phase2_models",
+  "model_name": "lgbm_app_hist",
+  "feature_version": "v1",
+  "feature_table": "`dbw_homecredit`.`default`.`gold_features_v1`",
+  "feature_table_delta_version": "5",
+  "split_table": "`dbw_homecredit`.`default`.`gold_split_tvt_v1`",
+  "split_table_delta_version": "1",
+  "test_roc_auc": "0.7808",
+  "test_pr_auc": "0.2765",
+  "test_brier": "0.0661",
+  "limitations": "Trained on Kaggle Home Credit data (one lender, historical); EXT_SOURCE_* timing unverified; CODE_GENDER excluded but proxies may remain; weakest slice slice_age=60+ (AUC 0.732); not for automated decisions."
+}

@@ -1,0 +1,357 @@
+[
+  {
+    "name": "SK_ID_CURR",
+    "type": "integer",
+    "nullable": false
+  },
+  {
+    "name": "AMT_INCOME_TOTAL",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "application"
+  },
+  {
+    "name": "AMT_CREDIT",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "application"
+  },
+  {
+    "name": "AMT_ANNUITY",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "application"
+  },
+  {
+    "name": "AMT_GOODS_PRICE",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "application"
+  },
+  {
+    "name": "CREDIT_INCOME_RATIO",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "application"
+  },
+  {
+    "name": "ANNUITY_INCOME_RATIO",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "application"
+  },
+  {
+    "name": "CREDIT_TERM",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "application"
+  },
+  {
+    "name": "GOODS_CREDIT_RATIO",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "application"
+  },
+  {
+    "name": "AGE_YEARS",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "application"
+  },
+  {
+    "name": "EMPLOYED_YEARS",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "application"
+  },
+  {
+    "name": "DAYS_EMPLOYED_ANOM",
+    "type": "integer",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "application"
+  },
+  {
+    "name": "EXT_SOURCE_1",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "application"
+  },
+  {
+    "name": "EXT_SOURCE_2",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "application"
+  },
+  {
+    "name": "EXT_SOURCE_3",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "application"
+  },
+  {
+    "name": "EXT_SOURCE_MEAN",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "application"
+  },
+  {
+    "name": "CNT_CHILDREN",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "application"
+  },
+  {
+    "name": "CNT_FAM_MEMBERS",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "application"
+  },
+  {
+    "name": "REGION_RATING_CLIENT",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "application"
+  },
+  {
+    "name": "NAME_CONTRACT_TYPE",
+    "type": "string",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "application"
+  },
+  {
+    "name": "CODE_GENDER",
+    "type": "string",
+    "nullable": true,
+    "used_by_model": false,
+    "group": "application"
+  },
+  {
+    "name": "NAME_INCOME_TYPE",
+    "type": "string",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "application"
+  },
+  {
+    "name": "NAME_EDUCATION_TYPE",
+    "type": "string",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "application"
+  },
+  {
+    "name": "FLAG_OWN_CAR",
+    "type": "string",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "application"
+  },
+  {
+    "name": "FLAG_OWN_REALTY",
+    "type": "string",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "application"
+  },
+  {
+    "name": "BUR_LOAN_COUNT",
+    "type": "integer",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "history"
+  },
+  {
+    "name": "BUR_ACTIVE_COUNT",
+    "type": "integer",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "history"
+  },
+  {
+    "name": "BUR_ACTIVE_DEBT_SUM",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "history"
+  },
+  {
+    "name": "BUR_DEBT_CREDIT_RATIO",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "history"
+  },
+  {
+    "name": "BUR_DEBT_INCOME_RATIO",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "history"
+  },
+  {
+    "name": "BUR_OVERDUE_SUM",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "history"
+  },
+  {
+    "name": "BUR_MAX_DAY_OVERDUE",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "history"
+  },
+  {
+    "name": "BUR_DAYS_SINCE_LAST_CREDIT",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "history"
+  },
+  {
+    "name": "BB_MONTHS_COUNT",
+    "type": "integer",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "history"
+  },
+  {
+    "name": "BB_LATE_MONTH_RATE",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "history"
+  },
+  {
+    "name": "PREV_APP_COUNT",
+    "type": "integer",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "history"
+  },
+  {
+    "name": "PREV_REFUSED_COUNT",
+    "type": "integer",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "history"
+  },
+  {
+    "name": "PREV_APPROVED_RATE",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "history"
+  },
+  {
+    "name": "PREV_CREDIT_APPLICATION_RATIO_MEAN",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "history"
+  },
+  {
+    "name": "PREV_DAYS_SINCE_LAST_DECISION",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "history"
+  },
+  {
+    "name": "INST_COUNT",
+    "type": "integer",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "history"
+  },
+  {
+    "name": "INST_LATE_RATE",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "history"
+  },
+  {
+    "name": "INST_DPD_MEAN",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "history"
+  },
+  {
+    "name": "INST_UNDERPAID_RATE",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "history"
+  },
+  {
+    "name": "INST_PAID_RATIO",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "history"
+  },
+  {
+    "name": "POS_MONTHS_COUNT",
+    "type": "integer",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "history"
+  },
+  {
+    "name": "POS_LATE_MONTH_RATE",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "history"
+  },
+  {
+    "name": "POS_DPD_MAX",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "history"
+  },
+  {
+    "name": "CC_MONTHS_COUNT",
+    "type": "integer",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "history"
+  },
+  {
+    "name": "CC_UTILIZATION_MEAN",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "history"
+  },
+  {
+    "name": "CC_DPD_MAX",
+    "type": "number",
+    "nullable": true,
+    "used_by_model": true,
+    "group": "history"
+  }
+]

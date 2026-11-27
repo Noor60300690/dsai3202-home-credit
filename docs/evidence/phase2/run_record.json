@@ -1,0 +1,85 @@
+{
+  "feature_table": "`dbw_homecredit`.`default`.`gold_features_v1`",
+  "feature_table_delta_version": "5",
+  "split_table": "`dbw_homecredit`.`default`.`gold_split_tvt_v1`",
+  "split_table_delta_version": "1",
+  "feature_version": "v1",
+  "git_commit": "f1cf4d21ca7e4712df5e44017a2ecc37bbb28840",
+  "seeds": {
+    "split_seed": 3202,
+    "validation_seed": 3203,
+    "model_seed": 3202,
+    "bootstrap_seed": 3202
+  },
+  "libraries": {
+    "python": "3.12.3",
+    "numpy": "2.3.4",
+    "pandas": "2.3.3",
+    "scikit-learn": "1.7.2",
+    "lightgbm": "4.5.0",
+    "mlflow": "3.12.0"
+  },
+  "split_counts": {
+    "test/0": 56537,
+    "test/1": 4965,
+    "train/0": 180919,
+    "train/1": 15888,
+    "validation/0": 45230,
+    "validation/1": 3972
+  },
+  "mlflow_runs": {
+    "parent": "3b066d7a9e824bb7a9daedada09c93d3",
+    "logreg_app": "5997745be3bd4aec91ce5cf826e05be2",
+    "lgbm_app": "8f9cc6b27b0046ff871d56ba3d1c2e55",
+    "lgbm_app_hist": "a489fc09f1da4dca8fa2a1187deaad56",
+    "lgbm_app_noext": "b196e5d2b02e466fae863e86978b6f02",
+    "lgbm_app_hist_noext": "2f52dee267af415dac90bcb261399e4a"
+  },
+  "chosen_model": "lgbm_app_hist",
+  "best_params": {
+    "logreg_app": {},
+    "lgbm_app": {
+      "num_leaves": 15,
+      "min_child_samples": 50,
+      "reg_lambda": 0.0
+    },
+    "lgbm_app_hist": {
+      "num_leaves": 31,
+      "min_child_samples": 50,
+      "reg_lambda": 5.0
+    }
+  },
+  "input_checks": {
+    "feature_source_version_is_v1": true,
+    "columns_match_spec": true,
+    "feature_rows_356255": true,
+    "test_rows_61502": true,
+    "train_rows_246009": true
+  },
+  "hypothesis": [
+    {
+      "comparison": "main: lgbm_app_hist vs lgbm_app",
+      "delta": 0.015507533935703366,
+      "ci_low": 0.012244720729064015,
+      "ci_high": 0.01880295509628424,
+      "n_boot": 1000,
+      "verdict": "refuted"
+    },
+    {
+      "comparison": "vs baseline: lgbm_app_hist vs logreg_app",
+      "delta": 0.035807366638011984,
+      "ci_low": 0.03192206747938084,
+      "ci_high": 0.039901162856893574,
+      "n_boot": 1000,
+      "verdict": "supported"
+    },
+    {
+      "comparison": "no EXT_SOURCE: lgbm_app_hist_noext vs lgbm_app_noext",
+      "delta": 0.03939370702546474,
+      "ci_low": 0.033079759281891025,
+      "ci_high": 0.04453146057017365,
+      "n_boot": 1000,
+      "verdict": "supported"
+    }
+  ]
+}
