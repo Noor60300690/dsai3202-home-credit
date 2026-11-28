@@ -1,0 +1,4 @@
+comparison,delta,ci_low,ci_high,n_boot,verdict
+main: lgbm_app_hist vs lgbm_app,0.015507533935703366,0.012244720729064015,0.01880295509628424,1000,refuted
+vs baseline: lgbm_app_hist vs logreg_app,0.035807366638011984,0.03192206747938084,0.039901162856893574,1000,supported
+no EXT_SOURCE: lgbm_app_hist_noext vs lgbm_app_noext,0.03939370702546474,0.033079759281891025,0.04453146057017365,1000,supported
