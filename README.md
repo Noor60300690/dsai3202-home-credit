@@ -16,7 +16,10 @@ Team: Noor (60300690) · Lercia (60306713)
 * **Hypothesis:** adding borrowing-history features (credit bureau, previous applications,
   past repayments) improves ROC-AUC by at least **0.03** compared with the application form
   alone.
-* **Approved refinements:** None.
+* **Approved refinements:** None to the hypothesis. In Phase 2 the decision rule gained a
+  confidence-interval condition (supported only if the gain is at least 0.03 **and** the 95 %
+  bootstrap CI is above 0). It was committed in `f1cf4d2` on 24 Nov 2026, before the test set
+  was scored. The verdict is the same under a stricter rule (CI lower bound ≥ 0.03).
 
 ## Dataset and architecture
 
@@ -241,11 +244,15 @@ the Job-level test, not the notebook hash-mismatch test.
   Validation is 20% of each class from the Phase-1 train set (seed 3203). The test set is
   used only once, at the end. Preprocessing is fitted on train only.
   A random (stratified) split is the right choice here: the data has no application dates,
-  so a time-based split is not possible, and there is exactly one row per applicant, so the
-  same person can never appear in both train and test.
+  so a time-based split is not possible, and there is exactly one row per application
+  (`SK_ID_CURR`), so no application appears in both train and test. Borrowing-history
+  features use only records from before the application (their `DAYS_*` values are
+  negative, counted back from the application date); see [docs/feature_spec.md](docs/feature_spec.md).
 * **Models:** logistic regression (baseline) and LightGBM, trained on application features
   only and on application + history. LightGBM handles missing values and imbalanced data well.
-  Settings were chosen on validation AUC (12 tried). Gender is not used.
+  Settings were chosen on validation AUC: 12 LightGBM settings (`num_leaves` 15/31/63 ×
+  `min_child_samples` 50/200 × `reg_lambda` 0/5, defined in `LGBM_GRID` in
+  [modeling.py](src/hc_pipeline/modeling.py)). Gender is not used.
 * **Decision rule (set before testing):** supported if history adds at least 0.03 AUC and the
   95% CI is above 0.
 * **Test results:**
@@ -256,20 +263,28 @@ the Job-level test, not the notebook hash-mismatch test.
   | LightGBM | application | 0.765 | 0.252 |
   | **LightGBM (chosen)** | **application + history** | **0.781** | **0.277** |
 
-  Validation AUC (0.773) is close to test, so the model generalizes.
+  Validation AUC (0.773) is close to test AUC (0.781). Validation was also used for tuning and
+  early stopping, so the test score is the unbiased estimate. ROC, precision-recall and
+  calibration curves: [test_curves.png](docs/evidence/phase2/test_curves.png).
 * **Hypothesis: refuted.** History adds +0.0155 AUC (95% CI 0.012 to 0.019), below 0.03.
   Without the `EXT_SOURCE` scores it adds +0.039, so these scores already hold most of the
   history information (extra check, not the main test).
 * **Weakest group:** age 60+, AUC 0.732 vs 0.781. Few defaults (4.9%) to learn from, but the
   predicted risk still matches the real rate.
 * **Errors:** missed defaulters had good external scores and a clean history; false alarms
-  had low scores and late payments but repaid.
+  had low scores and late payments but repaid. (Top 5 of each are saved as
+  `evidence/confident_errors.csv` in the MLflow parent run `3b066d7a9e824bb7a9daedada09c93d3`,
+  together with `tuning_validation.csv` and `feature_importance.csv`.)
 * **Top features:** `EXT_SOURCE_MEAN` is about 5× more important than any other;
   10 of the top 20 are history features ([chart](docs/evidence/phase2/feature_importance.png)).
 * **Limitations:** relies heavily on external scores; weaker for older applicants; no
   time-based test; outputs a probability (no decision threshold).
 * **Run record:** MLflow run `a489fc09f1da4dca8fa2a1187deaad56`. The run recorded commit
   `f1cf4d2`; three small Runtime-19 fixes made during the run were committed as `bf4db2e`.
+  To reproduce training, check out `bf4db2e` and run `notebooks/02_train_evaluate.py` on
+  Databricks Runtime 19.16 (Python 3.12.3, numpy 2.3.4, pandas 2.3.3, scikit-learn 1.7.2,
+  LightGBM 4.5.0, MLflow 3.12.0), with feature table version 5 and split table version 1
+  (all in [run_record.json](docs/evidence/phase2/run_record.json)).
 * **For deployment:** [model_tags.json](docs/evidence/phase2/model_tags.json),
   [model_input_schema.json](docs/evidence/phase2/model_input_schema.json),
   [consistency_sample_100.json](docs/evidence/phase2/consistency_sample_100.json)
@@ -304,9 +319,114 @@ The initial automatic MLflow deployment failed its health probes because the gen
 
 ### Input contract and repeatable setup
 
-The service accepts computed applicant-level features, not raw Kaggle tables. Generate features using the Phase-1 pipeline and select the fields and types in the [input schema](docs/evidence/phase2/model_input_schema.json). The MLflow signature has 50 feature columns (39 required and 11 optional); retain the signature fields even where the estimator does not use them. The response provides the probability of repayment difficulty, not an approval decision.
+**What the service accepts.** Computed features for one or more loan applications, not raw
+Kaggle tables. Each feature is defined in [docs/feature_spec.md](docs/feature_spec.md) and is
+computed by `build_features` in [src/hc_pipeline/features.py](src/hc_pipeline/features.py)
+(the Phase-1 job writes them to `gold_features_v1`). Field names and types are in
+[model_input_schema.json](docs/evidence/phase2/model_input_schema.json).
 
-For a reproducible sample request, use the first record in `inputs` from [consistency_sample_100.json](docs/evidence/phase2/consistency_sample_100.json) and construct the request using the invocation cell in the deployment notebook (Cell 52). The corresponding expected probability for applicant 100008 is `0.034801695219948824`. The exact live request and response are demonstrated in the notebook and evidence below.
+| Rule | Detail |
+|---|---|
+| Body | JSON object `{"inputs": [record, ...]}`, at least one record |
+| Record | `SK_ID_CURR` (integer, used only to label the output) plus all 50 feature fields |
+| Types | 44 numeric fields as JSON numbers; 6 categorical fields as strings (`NAME_CONTRACT_TYPE`, `CODE_GENDER`, `NAME_INCOME_TYPE`, `NAME_EDUCATION_TYPE`, `FLAG_OWN_CAR`, `FLAG_OWN_REALTY`) |
+| Missing values | Send `null`. Every feature is nullable in the schema. Numeric `null`s were checked on the live endpoint (the 100-row consistency sample contains them); `null` categorical values have not been tested |
+| `CODE_GENDER` | Must be sent but is ignored by the model |
+| Output | `{"predictions": [{"SK_ID_CURR": ..., "probability": ...}]}`, one entry per record in the same order; `probability` is the predicted chance of payment difficulties (0–1), not an approval decision |
+
+*Why the MLflow signature shows 39 required and 11 optional columns:* MLflow inferred the
+signature from 5 example rows, and marked as optional the 11 columns that happened to be empty
+in those rows. "Required" there only means the field name must be present; its value can still
+be `null`. `score.py` rejects a record that leaves out any of the 39, and fills the 11 with
+`null` if they are left out. Sending all 50 fields, as above, always works.
+
+**Errors.** `score.py` raises an error (no prediction is returned) when `inputs` is missing,
+empty or not a list; when a record is not an object; when a required field is missing; or when
+a numeric field holds a value that is not a number. These cases were tested against the scoring
+script locally (notebook cell 47). The HTTP status the live endpoint returns for them has not
+been verified yet.
+
+**Sample request.** [request_single.json](docs/evidence/phase2/request_single.json) is the first
+record of the consistency sample (applicant 100008):
+
+```bash
+SCORING_URI=$(az ml online-endpoint show -n homecredit-risk-endpoint \
+  -g rg-homecredit -w mlw-homecredit --query scoring_uri -o tsv)
+KEY=$(az ml online-endpoint get-credentials -n homecredit-risk-endpoint \
+  -g rg-homecredit -w mlw-homecredit --query primaryKey -o tsv)
+curl -s -X POST "$SCORING_URI" -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" -d @docs/evidence/phase2/request_single.json
+```
+
+<details><summary>Full request body</summary>
+
+```json
+{
+  "inputs": [
+    {
+      "SK_ID_CURR": 100008,
+      "AMT_INCOME_TOTAL": 99000.0,
+      "AMT_CREDIT": 490495.5,
+      "AMT_ANNUITY": 27517.5,
+      "AMT_GOODS_PRICE": 454500.0,
+      "CREDIT_INCOME_RATIO": 4.9545,
+      "ANNUITY_INCOME_RATIO": 0.27795454545454545,
+      "CREDIT_TERM": 17.824856909239575,
+      "GOODS_CREDIT_RATIO": 0.9266140056330792,
+      "AGE_YEARS": 46.38193018480493,
+      "EMPLOYED_YEARS": 4.347707049965777,
+      "DAYS_EMPLOYED_ANOM": 0,
+      "EXT_SOURCE_1": null,
+      "EXT_SOURCE_2": 0.3542247319929012,
+      "EXT_SOURCE_3": 0.6212263380626669,
+      "EXT_SOURCE_MEAN": 0.48772553502778404,
+      "CNT_CHILDREN": 0.0,
+      "CNT_FAM_MEMBERS": 2.0,
+      "REGION_RATING_CLIENT": 2.0,
+      "NAME_CONTRACT_TYPE": "Cash loans",
+      "CODE_GENDER": "M",
+      "NAME_INCOME_TYPE": "State servant",
+      "NAME_EDUCATION_TYPE": "Secondary / secondary special",
+      "FLAG_OWN_CAR": "N",
+      "FLAG_OWN_REALTY": "Y",
+      "BUR_LOAN_COUNT": 3,
+      "BUR_ACTIVE_COUNT": 1,
+      "BUR_ACTIVE_DEBT_SUM": 240057.0,
+      "BUR_DEBT_CREDIT_RATIO": 0.8970538777157463,
+      "BUR_DEBT_INCOME_RATIO": 2.424818181818182,
+      "BUR_OVERDUE_SUM": 0.0,
+      "BUR_MAX_DAY_OVERDUE": 0.0,
+      "BUR_DAYS_SINCE_LAST_CREDIT": 78.0,
+      "BB_MONTHS_COUNT": 0,
+      "BB_LATE_MONTH_RATE": null,
+      "PREV_APP_COUNT": 5,
+      "PREV_REFUSED_COUNT": 0,
+      "PREV_APPROVED_RATE": 0.8,
+      "PREV_CREDIT_APPLICATION_RATIO_MEAN": 0.978568794918514,
+      "PREV_DAYS_SINCE_LAST_DECISION": 82.0,
+      "INST_COUNT": 34,
+      "INST_LATE_RATE": 0.029411764705882353,
+      "INST_DPD_MEAN": 38.73529411764706,
+      "INST_UNDERPAID_RATE": 0.0,
+      "INST_PAID_RATIO": 1.0,
+      "POS_MONTHS_COUNT": 83,
+      "POS_LATE_MONTH_RATE": 0.5180722891566265,
+      "POS_DPD_MAX": 1294.0,
+      "CC_MONTHS_COUNT": 0,
+      "CC_UTILIZATION_MEAN": null,
+      "CC_DPD_MAX": null
+    }
+  ]
+}
+```
+
+</details>
+
+Response from the live endpoint (notebook cell 52):
+
+```json
+{"predictions": [{"SK_ID_CURR": 100008, "probability": 0.034801695219948824}]}
+```
 
 ![Successful live endpoint prediction](docs/evidence/phase2/phase2_endpoint_test.png)
 
@@ -421,6 +541,7 @@ Noor's disclosure:
 | Claude | Help with repetitive setup, syntax, Azure/Databricks troubleshooting and README formatting. | Helped write starter templates for hc_pipeline, databricks.yml and unit tests; suggested fixes for workspace permission and secret-scope errors; helped format the README tables and results. | Defined the pipeline rules, quarantine/quality checks (BLOCK/WARN) and leakage filters, and reviewed all code. Ran full EDA and resolved the DAYS_REGISTRATION decimal edge case (DOUBLE). Adjusted the job for course limits (dbw_homecredit default schema, prefixed tables, ADLS secret scopes). Set up the CLI, ran all rehearsal/full/failure jobs and pipeline tests, created the GitHub repo, and aligned manifest specs with Lercia. |
 | **Phase 2** | | | |
 | Claude | Review my training code for mistakes and explain my results for me to understand. | Confirmed no leakage and a correct test-once setup; flagged a hardcoded git-commit fallback, the consistency tolerance, the CI rule wording and an unverified per-class split; explained ROC-AUC, the bootstrap CI, why +0.0155 (CI 0.012–0.019) refutes the 0.03 target, and likely reasons for the weak 60+ group, the confident mistakes and the dominance of EXT_SOURCE_MEAN. | Verified the split myself (exactly 20% per class); recorded both commits (`f1cf4d2` run, `bf4db2e` fixes); chose not to add a decision threshold as the brief does not require it; all numbers come from my own run, and I checked the explanations against my slice and confident-errors outputs and wrote the sections in my own words. |
-| Claude | Read-only review of the repo before submission. | Checked README numbers, links and tests, and listed missing items | Verified the findings myself; Lercia and I made all fixes ourselves. |
+| Claude | Read-only review of the repo before submission. | Checked README numbers, links and tests, and listed missing items | Verified the findings myself; Lercia and I made the fixes up to commit `da3fe2b` ourselves. |
+| Claude | Make the remaining README fixes from that review in a commit. | Edited the README: input contract table, explanation of the 39/11 signature, error cases, sample request file and `curl` call, training reproduction line, decision-rule refinement note, tuning-grid reference, test-curves link and wording fixes. | Noor reviews this commit before submission and corrects anything that is wrong. |
 
 
