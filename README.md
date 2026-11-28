@@ -1,6 +1,6 @@
 # Predicting Loan Default with Borrowing-History Features
 
-DSAI3202 Fall 2026, Project Phase 1: data pipeline, ETL and features.
+DSAI3202 Fall 2026, Project Phase 2: model training, evaluation and deployment (builds on the Phase 1 pipeline).
 Team: Noor (60300690) · Lercia (60306713)
 
 ## Project and hypothesis
@@ -11,11 +11,15 @@ Team: Noor (60300690) · Lercia (60306713)
   difficulties; about 8 % are 1).
 * **Baseline plan:** logistic regression using only the application form. Comparison:
   LightGBM using the application form plus borrowing history. Control: LightGBM using only
-  the application form. All three use the same fixed 80/20 split (`gold_split_v1`).
+  the application form. All three use the same split (`gold_split_tvt_v1`): the fixed Phase 1
+  80/20 split, with 20 % of the training part held out for validation.
 * **Hypothesis:** adding borrowing-history features (credit bureau, previous applications,
   past repayments) improves ROC-AUC by at least **0.03** compared with the application form
   alone.
-* **Approved refinements:** None.
+* **Approved refinements:** None to the hypothesis. In Phase 2 the decision rule gained a
+  confidence-interval condition (supported only if the gain is at least 0.03 **and** the 95 %
+  bootstrap CI is above 0). It was committed in `f1cf4d2` on 24 Nov 2026, before the test set
+  was scored. The verdict is the same under a stricter rule (CI lower bound ≥ 0.03).
 
 ## Dataset and architecture
 
@@ -156,7 +160,7 @@ the Job-level test, not the notebook hash-mismatch test.
   databricks bundle run -t dev home_credit_etl       # runs it on raw version v1
   # controlled failure test on a separate bad input:
   databricks bundle run -t dev home_credit_etl --params raw_root=/Volumes/dbw_homecredit/default/raw/home_credit,source_version=test_bad_v1,enforce_expected_rows=false
-  pytest -q                                          # 12 unit tests (local)
+  pytest -q                                          # 20 unit tests (local)
   ```
 
   The job runs 5 steps in this order:
@@ -239,9 +243,16 @@ the Job-level test, not the notebook hash-mismatch test.
 * **Split:** train 196,807 / validation 49,202 / test 61,502 (about 8% defaults in each).
   Validation is 20% of each class from the Phase-1 train set (seed 3203). The test set is
   used only once, at the end. Preprocessing is fitted on train only.
+  A random (stratified) split is the right choice here: the data has no application dates,
+  so a time-based split is not possible, and there is exactly one row per application
+  (`SK_ID_CURR`), so no application appears in both train and test. Borrowing-history
+  features use only records from before the application (their `DAYS_*` values are
+  negative, counted back from the application date); see [docs/feature_spec.md](docs/feature_spec.md).
 * **Models:** logistic regression (baseline) and LightGBM, trained on application features
   only and on application + history. LightGBM handles missing values and imbalanced data well.
-  Settings were chosen on validation AUC (12 tried). Gender is not used.
+  Settings were chosen on validation AUC: 12 LightGBM settings (`num_leaves` 15/31/63 ×
+  `min_child_samples` 50/200 × `reg_lambda` 0/5, defined in `LGBM_GRID` in
+  [modeling.py](src/hc_pipeline/modeling.py)). Gender is not used.
 * **Decision rule (set before testing):** supported if history adds at least 0.03 AUC and the
   95% CI is above 0.
 * **Test results:**
@@ -252,20 +263,28 @@ the Job-level test, not the notebook hash-mismatch test.
   | LightGBM | application | 0.765 | 0.252 |
   | **LightGBM (chosen)** | **application + history** | **0.781** | **0.277** |
 
-  Validation AUC (0.773) is close to test, so the model generalizes.
+  Validation AUC (0.773) is close to test AUC (0.781). Validation was also used for tuning and
+  early stopping, so the test score is the unbiased estimate. ROC, precision-recall and
+  calibration curves: [test_curves.png](docs/evidence/phase2/test_curves.png).
 * **Hypothesis: refuted.** History adds +0.0155 AUC (95% CI 0.012 to 0.019), below 0.03.
   Without the `EXT_SOURCE` scores it adds +0.039, so these scores already hold most of the
   history information (extra check, not the main test).
 * **Weakest group:** age 60+, AUC 0.732 vs 0.781. Few defaults (4.9%) to learn from, but the
   predicted risk still matches the real rate.
 * **Errors:** missed defaulters had good external scores and a clean history; false alarms
-  had low scores and late payments but repaid.
+  had low scores and late payments but repaid. (Top 5 of each are saved as
+  `evidence/confident_errors.csv` in the MLflow parent run `3b066d7a9e824bb7a9daedada09c93d3`,
+  together with `tuning_validation.csv` and `feature_importance.csv`.)
 * **Top features:** `EXT_SOURCE_MEAN` is about 5× more important than any other;
   10 of the top 20 are history features ([chart](docs/evidence/phase2/feature_importance.png)).
 * **Limitations:** relies heavily on external scores; weaker for older applicants; no
   time-based test; outputs a probability (no decision threshold).
 * **Run record:** MLflow run `a489fc09f1da4dca8fa2a1187deaad56`. The run recorded commit
   `f1cf4d2`; three small Runtime-19 fixes made during the run were committed as `bf4db2e`.
+  To reproduce training, check out `bf4db2e` and run `notebooks/02_train_evaluate.py` on
+  Databricks Runtime 19.16 (Python 3.12.3, numpy 2.3.4, pandas 2.3.3, scikit-learn 1.7.2,
+  LightGBM 4.5.0, MLflow 3.12.0), with feature table version 5 and split table version 1
+  (all in [run_record.json](docs/evidence/phase2/run_record.json)).
 * **For deployment:** [model_tags.json](docs/evidence/phase2/model_tags.json),
   [model_input_schema.json](docs/evidence/phase2/model_input_schema.json),
   [consistency_sample_100.json](docs/evidence/phase2/consistency_sample_100.json)
@@ -300,9 +319,33 @@ The initial automatic MLflow deployment failed its health probes because the gen
 
 ### Input contract and repeatable setup
 
-The service accepts a JSON object containing `inputs`, a non-empty list of computed applicant-level feature records, not raw Kaggle tables. Generate features using the Phase 1 pipeline and use the names and types in the [input schema](docs/evidence/phase2/model_input_schema.json). Each record should include `SK_ID_CURR` for matching predictions and all 50 feature fields, using JSON numbers or strings as specified by the schema, or `null` for missing values. All 50 features individually accepted `null` in live tests (50/50 HTTP 200). This does not establish that every combination of missing values is valid or useful.
+**What the service accepts.** Computed features for one or more loan applications, not raw
+Kaggle tables. Each feature is defined in [docs/feature_spec.md](docs/feature_spec.md) and is
+computed by `build_features` in [src/hc_pipeline/features.py](src/hc_pipeline/features.py)
+(the Phase-1 job writes them to `gold_features_v1`). Field names and types are in
+[model_input_schema.json](docs/evidence/phase2/model_input_schema.json).
 
-The 39 required / 11 optional distinction comes from the saved MLflow signature metadata, not from a distinction in nullability. The current scoring script enforces presence of the 39 required fields and fills omitted optional fields with `None`. For a consistent client contract, send all 50 fields, using `null` when a value is unavailable. `SK_ID_CURR` is an identifier, not a model feature; `CODE_GENDER` is retained in the input signature but excluded from the estimator. The response contains a `predictions` list with applicant IDs and positive-class probabilities, not approval decisions.
+| Rule | Detail |
+|---|---|
+| Body | JSON object `{"inputs": [record, ...]}`, at least one record |
+| Record | `SK_ID_CURR` (integer, used only to label the output) plus all 50 feature fields |
+| Types | 44 numeric fields as JSON numbers; 6 categorical fields as strings (`NAME_CONTRACT_TYPE`, `CODE_GENDER`, `NAME_INCOME_TYPE`, `NAME_EDUCATION_TYPE`, `FLAG_OWN_CAR`, `FLAG_OWN_REALTY`) |
+| Missing values | Send `null`. Every feature is nullable in the schema. On the live endpoint, each of the 50 features was set to `null` one at a time and all 50 requests returned HTTP 200 (see Functional and consistency checks); this does not cover every combination of missing values |
+| `CODE_GENDER` | Must be sent but is ignored by the model |
+| Output | `{"predictions": [{"SK_ID_CURR": ..., "probability": ...}]}`, one entry per record in the same order; `probability` is the predicted chance of payment difficulties (0–1), not an approval decision |
+
+*Why the MLflow signature shows 39 required and 11 optional columns:* MLflow inferred the
+signature from 5 example rows, and marked as optional the 11 columns that happened to be empty
+in those rows. "Required" there only means the field name must be present; its value can still
+be `null`. `score.py` rejects a record that leaves out any of the 39, and fills the 11 with
+`null` if they are left out. Sending all 50 fields, as above, always works.
+
+**Errors.** `score.py` raises an error (no prediction is returned) when `inputs` is missing,
+empty or not a list; when a record is not an object; when a required field is missing; or when
+a numeric field holds a value that is not a number. These cases were tested locally against the
+scoring script (notebook cell 47). Four of them (empty, missing or non-list `inputs`, and a
+missing required field) were also sent to the live endpoint, which rejected each with HTTP 424
+and a generic scoring-script error message (see Functional and consistency checks).
 
 **Sample request (tested on the live endpoint, HTTP 200):**
 
@@ -425,6 +468,8 @@ A separate live nullability test set each of the 50 features to `null` individua
 
 The same 100 fixed test records were scored offline and online, with tolerance `1e-6` and matching records in the fixed sample order. Both tests matched 100/100 expected predictions, with maximum and mean absolute difference of 0.0.
 
+![Live nullability test: each of the 50 features set to null returned HTTP 200](docs/evidence/phase2_nullable_fields_verification.png)
+
 ![Online consistency: 100 of 100 exact matches](docs/evidence/phase2/phase2_online_consistency.png)
 
 Additional evidence: [local consistency](docs/evidence/phase2/phase2_local_consistency.png), [custom scoring test](docs/evidence/phase2/phase2_custom_scoring_success.png), [environment registration](docs/evidence/phase2/phase2_environment_registered.png).
@@ -458,7 +503,8 @@ Keep the endpoint available through the presentation and D2L assessment window. 
 ### Phase 2 contributions and reused code
 
 * Lercia: Azure ML workspace setup, model registration, deployment troubleshooting, custom scoring and environment configuration, local and online consistency checks, live functional and nullability testing, latency benchmarking, cost estimation, cleanup planning and deployment evidence.
-* Noor: model training, validation and error analysis. Both members share documentation, consistency review and presentation preparation.
+* Noor: validation split (20% of each class, seed 3203); model training (logistic regression baseline, LightGBM control on application features, LightGBM candidate with history; 12 settings tuned on validation); one-time test evaluation; bootstrap hypothesis test (1,000 samples); extra no-EXT_SOURCE check; error analysis (slices, confident mistakes, feature importance); deployment hand-off files (model tags, input schema, 100-row consistency sample); 8 new modeling tests (20 total); and the README Model and evaluation section. Both members share documentation, consistency review and presentation preparation.
+* Noor's part reused no lab code; it was written for this project.
 * Lercia used the Lab 10 managed endpoint workflow as a reference, adapting it to the registered Home Credit MLflow model, custom inference environment, input validation and fixed-sample consistency checks.
 
 ## Resource use and contributions
