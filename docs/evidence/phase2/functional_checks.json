@@ -1,0 +1,144 @@
+{
+  "endpoint": "homecredit-risk-endpoint",
+  "deployment": "blue",
+  "model_name": "lgbm-app-hist",
+  "model_version": "1",
+  "tested_at": "2026-11-28T14:19:16.234425+00:00",
+  "test_location": "Live Azure ML endpoint",
+  "total_tests": 5,
+  "passed": 5,
+  "failed": 0,
+  "tests": [
+    {
+      "test": "Valid input",
+      "request": {
+        "inputs": [
+          {
+            "SK_ID_CURR": 100008,
+            "AMT_INCOME_TOTAL": 99000.0,
+            "AMT_CREDIT": 490495.5,
+            "AMT_ANNUITY": 27517.5,
+            "AMT_GOODS_PRICE": 454500.0,
+            "CREDIT_INCOME_RATIO": 4.9545,
+            "ANNUITY_INCOME_RATIO": 0.27795454545454545,
+            "CREDIT_TERM": 17.824856909239575,
+            "GOODS_CREDIT_RATIO": 0.9266140056330792,
+            "AGE_YEARS": 46.38193018480493,
+            "EMPLOYED_YEARS": 4.347707049965777,
+            "DAYS_EMPLOYED_ANOM": 0,
+            "EXT_SOURCE_1": null,
+            "EXT_SOURCE_2": 0.3542247319929012,
+            "EXT_SOURCE_3": 0.6212263380626669,
+            "EXT_SOURCE_MEAN": 0.48772553502778404,
+            "CNT_CHILDREN": 0.0,
+            "CNT_FAM_MEMBERS": 2.0,
+            "REGION_RATING_CLIENT": 2.0,
+            "NAME_CONTRACT_TYPE": "Cash loans",
+            "CODE_GENDER": "M",
+            "NAME_INCOME_TYPE": "State servant",
+            "NAME_EDUCATION_TYPE": "Secondary / secondary special",
+            "FLAG_OWN_CAR": "N",
+            "FLAG_OWN_REALTY": "Y",
+            "BUR_LOAN_COUNT": 3,
+            "BUR_ACTIVE_COUNT": 1,
+            "BUR_ACTIVE_DEBT_SUM": 240057.0,
+            "BUR_DEBT_CREDIT_RATIO": 0.8970538777157463,
+            "BUR_DEBT_INCOME_RATIO": 2.424818181818182,
+            "BUR_OVERDUE_SUM": 0.0,
+            "BUR_MAX_DAY_OVERDUE": 0.0,
+            "BUR_DAYS_SINCE_LAST_CREDIT": 78.0,
+            "BB_MONTHS_COUNT": 0,
+            "BB_LATE_MONTH_RATE": null,
+            "PREV_APP_COUNT": 5,
+            "PREV_REFUSED_COUNT": 0,
+            "PREV_APPROVED_RATE": 0.8,
+            "PREV_CREDIT_APPLICATION_RATIO_MEAN": 0.978568794918514,
+            "PREV_DAYS_SINCE_LAST_DECISION": 82.0,
+            "INST_COUNT": 34,
+            "INST_LATE_RATE": 0.029411764705882353,
+            "INST_DPD_MEAN": 38.73529411764706,
+            "INST_UNDERPAID_RATE": 0.0,
+            "INST_PAID_RATIO": 1.0,
+            "POS_MONTHS_COUNT": 83,
+            "POS_LATE_MONTH_RATE": 0.5180722891566265,
+            "POS_DPD_MAX": 1294.0,
+            "CC_MONTHS_COUNT": 0,
+            "CC_UTILIZATION_MEAN": null,
+            "CC_DPD_MAX": null
+          }
+        ]
+      },
+      "http_status": 200,
+      "model_error_status": null,
+      "response": {
+        "predictions": [
+          {
+            "SK_ID_CURR": 100008,
+            "probability": 0.034801695219948824
+          }
+        ]
+      },
+      "expected": "Accepted",
+      "passed": true,
+      "latency_ms": 84.51
+    },
+    {
+      "test": "Empty inputs",
+      "request": {
+        "inputs": []
+      },
+      "http_status": 424,
+      "model_error_status": "500",
+      "response": {
+        "message": "An unexpected error occurred in scoring script. Check the logs for more info."
+      },
+      "expected": "Rejected",
+      "passed": true,
+      "latency_ms": 65.69
+    },
+    {
+      "test": "Missing inputs",
+      "request": {},
+      "http_status": 424,
+      "model_error_status": "500",
+      "response": {
+        "message": "An unexpected error occurred in scoring script. Check the logs for more info."
+      },
+      "expected": "Rejected",
+      "passed": true,
+      "latency_ms": 55.74
+    },
+    {
+      "test": "Invalid input type",
+      "request": {
+        "inputs": "invalid"
+      },
+      "http_status": 424,
+      "model_error_status": "500",
+      "response": {
+        "message": "An unexpected error occurred in scoring script. Check the logs for more info."
+      },
+      "expected": "Rejected",
+      "passed": true,
+      "latency_ms": 41.61
+    },
+    {
+      "test": "Missing required features",
+      "request": {
+        "inputs": [
+          {
+            "SK_ID_CURR": 100008
+          }
+        ]
+      },
+      "http_status": 424,
+      "model_error_status": "500",
+      "response": {
+        "message": "An unexpected error occurred in scoring script. Check the logs for more info."
+      },
+      "expected": "Rejected",
+      "passed": true,
+      "latency_ms": 42.41
+    }
+  ]
+}
