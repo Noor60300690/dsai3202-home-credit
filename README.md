@@ -1,6 +1,6 @@
 # Predicting Loan Default with Borrowing-History Features
 
-DSAI3202 Fall 2026, Project Phase 1: data pipeline, ETL and features.
+DSAI3202 Fall 2026, Project Phase 2: model training, evaluation and deployment (builds on the Phase 1 pipeline).
 Team: Noor (60300690) · Lercia (60306713)
 
 ## Project and hypothesis
@@ -156,7 +156,7 @@ the Job-level test, not the notebook hash-mismatch test.
   databricks bundle run -t dev home_credit_etl       # runs it on raw version v1
   # controlled failure test on a separate bad input:
   databricks bundle run -t dev home_credit_etl --params raw_root=/Volumes/dbw_homecredit/default/raw/home_credit,source_version=test_bad_v1,enforce_expected_rows=false
-  pytest -q                                          # 12 unit tests (local)
+  pytest -q                                          # 20 unit tests (local)
   ```
 
   The job runs 5 steps in this order:
@@ -347,7 +347,8 @@ Keep the endpoint available through the presentation and D2L assessment window. 
 ### Phase 2 contributions and reused code
 
 * Lercia: Azure ML workspace setup, model registration, deployment troubleshooting, custom scoring and environment configuration, local and online consistency checks, latency benchmarking, cost estimation, cleanup planning and deployment evidence.
-* Noor: model training, validation and error analysis. Both members share documentation, consistency review and presentation preparation.
+* Noor: validation split (20% of each class, seed 3203); model training (logistic regression baseline, LightGBM control on application features, LightGBM candidate with history; 12 settings tuned on validation); one-time test evaluation; bootstrap hypothesis test (1,000 samples); extra no-EXT_SOURCE check; error analysis (slices, confident mistakes, feature importance); deployment hand-off files (model tags, input schema, 100-row consistency sample); 20 unit tests; and the README Model and evaluation section. Both members share documentation, consistency review and presentation preparation.
+* Noor's part reused no lab code; it was written for this project.
 * Lercia used the Lab 10 managed endpoint workflow as a reference, adapting it to the registered Home Credit MLflow model, custom inference environment, input validation and fixed-sample consistency checks.
 
 ## Resource use and contributions
@@ -418,3 +419,5 @@ Noor's disclosure:
 | Claude | Review my training code for mistakes. | Confirmed no leakage and a correct test-once setup; flagged a hardcoded git-commit fallback, the consistency tolerance, the CI rule wording and an unverified per-class split. | Verified the split myself (exactly 20% per class); recorded both commits (`f1cf4d2` run, `bf4db2e` fixes); decided not to add a decision threshold as the brief does not require it. |
 | Claude | Explain my test results, hypothesis outcome and error analysis in simple words. | Explained ROC-AUC, the bootstrap CI and why +0.0155 (CI 0.012–0.019) refutes the 0.03 target; suggested likely reasons for the weak 60+ group, the confident mistakes and the dominance of EXT_SOURCE_MEAN. | All numbers come from my own run; checked the explanations against my slice and confident-errors outputs (60+ default rate 4.9%, mean prediction matches the real rate) and wrote the sections in my own words. |
 | Claude | Review the README "Model and evaluation" section. | Suggested stating the decision rule, adding split counts, fixing runtime/commit info, rewording the overfitting line, marking the no-EXT_SOURCE result as an extra check, listing deployment files, and trimming. | Applied most suggestions and rewrote the section myself; skipped the threshold and tolerance notes as not required. |
+| Claude | Do a Kaggle-style overview: has anyone else analysed this dataset, and how do their scores compare? | Found published results on the same dataset (Kaggle 2nd place 0.806, single LightGBM projects about 0.78–0.79) and pointed out they use a different test set. | Used them as context only on one slide; our main comparison stays our own baseline and control, as planned in Phase 0. |
+| Claude | Help build the presentation slides in Canva from my results. | Laid out the slides, owner labels and speaker notes from my run outputs and the README. | Checked every number against `run_record.json` and the README, and chose what to present. |

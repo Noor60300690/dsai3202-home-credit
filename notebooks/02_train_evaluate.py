@@ -68,7 +68,6 @@ dbutils.widgets.dropdown("local", "false", ["true", "false"])        # noqa: F82
 W = {k: dbutils.widgets.get(k) for k in (                              # noqa: F821
     "catalog", "single_schema", "git_commit", "experiment", "evidence_dir", "export_dir",
     "expect_full_data", "local")}
-W["git_commit"] = W["git_commit"] or "f1cf4d21ca7e4712df5e44017a2ecc37bbb28840"
 
 if not W["git_commit"].strip():
     raise ValueError("Set the git_commit widget to the commit you are running "
