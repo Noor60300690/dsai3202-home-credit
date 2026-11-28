@@ -11,7 +11,8 @@ Team: Noor (60300690) · Lercia (60306713)
   difficulties; about 8 % are 1).
 * **Baseline plan:** logistic regression using only the application form. Comparison:
   LightGBM using the application form plus borrowing history. Control: LightGBM using only
-  the application form. All three use the same fixed 80/20 split (`gold_split_v1`).
+  the application form. All three use the same split (`gold_split_tvt_v1`): the fixed Phase 1
+  80/20 split, with 20 % of the training part held out for validation.
 * **Hypothesis:** adding borrowing-history features (credit bureau, previous applications,
   past repayments) improves ROC-AUC by at least **0.03** compared with the application form
   alone.
@@ -239,6 +240,9 @@ the Job-level test, not the notebook hash-mismatch test.
 * **Split:** train 196,807 / validation 49,202 / test 61,502 (about 8% defaults in each).
   Validation is 20% of each class from the Phase-1 train set (seed 3203). The test set is
   used only once, at the end. Preprocessing is fitted on train only.
+  A random (stratified) split is the right choice here: the data has no application dates,
+  so a time-based split is not possible, and there is exactly one row per applicant, so the
+  same person can never appear in both train and test.
 * **Models:** logistic regression (baseline) and LightGBM, trained on application features
   only and on application + history. LightGBM handles missing values and imbalanced data well.
   Settings were chosen on validation AUC (12 tried). Gender is not used.
