@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "hc_pipeline"
 version = "1.0.0"
-description = "Home Credit Default Risk: ingestion-to-features pipeline (DSAI3202 Phase 1)"
+description = "Home Credit Default Risk: pipeline, model training and evaluation (DSAI3202 Phase 2)"
 requires-python = ">=3.10"
 dependencies = []   # pyspark is provided by the Databricks runtime
 
